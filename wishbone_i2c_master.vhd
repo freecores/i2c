@@ -3,7 +3,8 @@
 --
 -- author: Richard Herveille
 -- rev. 0.1 based on simple_i2c
--- rev. 0.2 27th april 2001, fixed incomplete sensitivity list on assign_dato process (thanks to Matt Oseman)
+-- rev. 0.2 april 27th 2001, fixed incomplete sensitivity list on assign_dato process (thanks to Matt Oseman)
+-- rev. 0.3 may 4th 2001, fixed typo rev.0.2 txt -> txr
 --
 -- Changes compared to simple_i2c
 -- 1) WISHBONE interface
@@ -103,7 +104,7 @@ begin
 
 
 	-- assign DAT_O
-	assign_dato : process(ADR_I, prer, ctr, txt, cr, rxr, sr)
+	assign_dato : process(ADR_I, prer, ctr, txr, cr, rxr, sr)
 	begin
 		case ADR_I is
 			when "00" =>
