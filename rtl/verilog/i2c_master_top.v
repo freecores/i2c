@@ -37,16 +37,19 @@
 
 //  CVS Log
 //
-//  $Id: i2c_master_top.v,v 1.7 2002-12-26 15:02:32 rherveille Exp $
+//  $Id: i2c_master_top.v,v 1.8 2002-12-26 16:05:12 rherveille Exp $
 //
-//  $Date: 2002-12-26 15:02:32 $
-//  $Revision: 1.7 $
+//  $Date: 2002-12-26 16:05:12 $
+//  $Revision: 1.8 $
 //  $Author: rherveille $
 //  $Locker:  $
 //  $State: Exp $
 //
 // Change History:
 //               $Log: not supported by cvs2svn $
+//               Revision 1.7  2002/12/26 15:02:32  rherveille
+//               Core is now a Multimaster I2C controller
+//
 //               Revision 1.6  2002/11/30 22:24:40  rherveille
 //               Cleaned up code
 //
@@ -200,7 +203,7 @@ module i2c_master_top(
 	          cr[7:4] <= #1 4'h0;           // clear command bits when done
 	                                        // or when aribitration lost
 	        cr[2:1] <= #1 2'b0;             // reserved bits
-	        cr[0]   <= #1 cr[0] & irq_flag; // clear when irq_flag is cleared
+	        cr[0]   <= #1 2'b0;             // clear IRQ_ACK bit
 	    end
 
 

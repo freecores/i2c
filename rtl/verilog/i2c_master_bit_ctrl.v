@@ -37,16 +37,19 @@
 
 //  CVS Log
 //
-//  $Id: i2c_master_bit_ctrl.v,v 1.6 2002-12-26 15:02:32 rherveille Exp $
+//  $Id: i2c_master_bit_ctrl.v,v 1.7 2002-12-26 16:05:12 rherveille Exp $
 //
-//  $Date: 2002-12-26 15:02:32 $
-//  $Revision: 1.6 $
+//  $Date: 2002-12-26 16:05:12 $
+//  $Revision: 1.7 $
 //  $Author: rherveille $
 //  $Locker:  $
 //  $State: Exp $
 //
 // Change History:
 //               $Log: not supported by cvs2svn $
+//               Revision 1.6  2002/12/26 15:02:32  rherveille
+//               Core is now a Multimaster I2C controller
+//
 //               Revision 1.5  2002/11/30 22:24:40  rherveille
 //               Cleaned up code
 //
@@ -224,7 +227,7 @@ module i2c_master_bit_ctrl(
 	      sto_condition <= #1  sSDA & ~dSDA & sSCL;
 	  end
 
-	// generate bus busy signal
+	// generate i2c bus busy signal
 	always @(posedge clk or negedge nReset)
 	  if(!nReset)
 	    busy <= #1 1'b0;
