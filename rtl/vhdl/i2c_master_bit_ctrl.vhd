@@ -37,16 +37,19 @@
 
 --  CVS Log
 --
---  $Id: i2c_master_bit_ctrl.vhd,v 1.6 2003-02-01 02:03:06 rherveille Exp $
+--  $Id: i2c_master_bit_ctrl.vhd,v 1.7 2003-02-05 00:06:02 rherveille Exp $
 --
---  $Date: 2003-02-01 02:03:06 $
---  $Revision: 1.6 $
+--  $Date: 2003-02-05 00:06:02 $
+--  $Revision: 1.7 $
 --  $Author: rherveille $
 --  $Locker:  $
 --  $State: Exp $
 --
 -- Change History:
 --               $Log: not supported by cvs2svn $
+--               Revision 1.6  2003/02/01 02:03:06  rherveille
+--               Fixed a few 'arbitration lost' bugs. VHDL version only.
+--
 --               Revision 1.5  2002/12/26 16:05:47  rherveille
 --               Core is now a Multimaster I2C controller.
 --
@@ -206,24 +209,46 @@ begin
 	  signal ibusy               : std_logic;  -- internal busy signal
 	begin
 	    -- synchronize SCL and SDA inputs
-	    synch_scl_sda: process(clk)
+	    synch_scl_sda: process(clk, nReset)
 	    begin
-	        if (clk'event and clk = '1') then
-	          sSCL <= scl_i;
-	          sSDA <= sda_i;
+	        if (nReset = '0') then
+	          sSCL <= '1';
+	          sSDA <= '1';
 
-	          dSCL <= sSCL;
-	          dSDA <= sSDA;
+	          dSCL <= '1';
+	          dSDA <= '1';
+	        elsif (clk'event and clk = '1') then
+	          if (rst = '1') then
+	            sSCL <= '1';
+	            sSDA <= '1';
+
+	            dSCL <= '1';
+	            dSDA <= '1';
+	          else
+	            sSCL <= scl_i;
+	            sSDA <= sda_i;
+
+	            dSCL <= sSCL;
+	            dSDA <= sSDA;
+	          end if;
 	        end if;
 	    end process synch_SCL_SDA;
 
 	    -- detect start condition => detect falling edge on SDA while SCL is high
 	    -- detect stop condition  => detect rising edge on SDA while SCL is high
-	    detect_sta_sto: process(clk)
+	    detect_sta_sto: process(clk, nReset)
 	    begin
-	        if (clk'event and clk = '1') then
-	          sta_condition <= (not sSDA and dSDA) and sSCL;
-	          sto_condition <= (sSDA and not dSDA) and sSCL;
+	        if (nReset = '0') then
+	          sta_condition <= '0';
+	          sto_condition <= '0';
+	        elsif (clk'event and clk = '1') then
+	          if (rst = '1') then
+	            sta_condition <= '0';
+	            sto_condition <= '0';
+	          else
+	            sta_condition <= (not sSDA and dSDA) and sSCL;
+	            sto_condition <= (sSDA and not dSDA) and sSCL;
+	          end if;
 	        end if;
 	    end process detect_sta_sto;
 
@@ -244,20 +269,30 @@ begin
 
 
 	    -- generate arbitration lost signal
-	    gen_al: process(clk)
+	    gen_al: process(clk, nReset)
 	    begin
-	      if (clk'event and clk = '1') then
-		    if (cmd = I2C_CMD_STOP) then
-	          cmd_stop <= '1';
-			else
-			  cmd_stop <= '0';
-			end if;
-	        dcmd_stop <= cmd_stop;
+	      if (nReset = '0') then
+	        cmd_stop  <= '0';
+	        dcmd_stop <= '0';
+	        ial       <= '0';
+	      elsif (clk'event and clk = '1') then
+	        if (rst = '1') then
+	          cmd_stop  <= '0';
+	          dcmd_stop <= '0';
+	          ial       <= '0';
+	        else
+	          if (cmd = I2C_CMD_STOP) then
+	            cmd_stop <= '1';
+	          else
+	            cmd_stop <= '0';
+	          end if;
+	          dcmd_stop <= cmd_stop;
 
-	        al <= (sda_chk and not sSDA and isda_oen) or (sto_condition and not dcmd_stop);
+	          ial <= (sda_chk and not sSDA and isda_oen) or (sto_condition and not dcmd_stop);
+	        end if;
 	      end if;
 	    end process gen_al;
-	    ial <= al;
+	    al <= ial;
 
 	    -- generate dout signal, store dout on rising edge of SCL
 	    gen_dout: process(clk)

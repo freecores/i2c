@@ -37,16 +37,19 @@
 
 //  CVS Log
 //
-//  $Id: i2c_master_bit_ctrl.v,v 1.7 2002-12-26 16:05:12 rherveille Exp $
+//  $Id: i2c_master_bit_ctrl.v,v 1.8 2003-02-05 00:06:10 rherveille Exp $
 //
-//  $Date: 2002-12-26 16:05:12 $
-//  $Revision: 1.7 $
+//  $Date: 2003-02-05 00:06:10 $
+//  $Revision: 1.8 $
 //  $Author: rherveille $
 //  $Locker:  $
 //  $State: Exp $
 //
 // Change History:
 //               $Log: not supported by cvs2svn $
+//               Revision 1.7  2002/12/26 16:05:12  rherveille
+//               Small code simplifications
+//
 //               Revision 1.6  2002/12/26 15:02:32  rherveille
 //               Core is now a Multimaster I2C controller
 //
@@ -210,22 +213,50 @@ module i2c_master_bit_ctrl(
 
 	// synchronize SCL and SDA inputs
 	// reduce metastability risc
-	always @(posedge clk)
-	  begin
-	      sSCL <= #1 scl_i;
-	      sSDA <= #1 sda_i;
+	always @(posedge clk or negedge nReset)
+	  if (~nReset)
+	    begin
+	        sSCL <= #1 1'b1;
+	        sSDA <= #1 1'b1;
 
-	      dSCL <= #1 sSCL;
-	      dSDA <= #1 sSDA;
-	  end
+	        dSCL <= #1 1'b1;
+	        dSDA <= #1 1'b1;
+	    end
+	  else if (rst)
+	    begin
+	        sSCL <= #1 1'b1;
+	        sSDA <= #1 1'b1;
+
+	        dSCL <= #1 1'b1;
+	        dSDA <= #1 1'b1;
+	    end
+	  else
+	    begin
+	        sSCL <= #1 scl_i;
+	        sSDA <= #1 sda_i;
+
+	        dSCL <= #1 sSCL;
+	        dSDA <= #1 sSDA;
+	    end
 
 	// detect start condition => detect falling edge on SDA while SCL is high
 	// detect stop condition => detect rising edge on SDA while SCL is high
-	always @(posedge clk)
-	  begin
-	      sta_condition <= #1 ~sSDA &  dSDA & sSCL;
-	      sto_condition <= #1  sSDA & ~dSDA & sSCL;
-	  end
+	always @(posedge clk or negedge nReset)
+	  if (~nReset)
+	    begin
+	        sta_condition <= #1 1'b0;
+	        sto_condition <= #1 1'b0;
+	    end
+	  else if (rst)
+	    begin
+	        sta_condition <= #1 1'b0;
+	        sto_condition <= #1 1'b0;
+	    end
+	  else
+	    begin
+	        sta_condition <= #1 ~sSDA &  dSDA & sSCL;
+	        sto_condition <= #1  sSDA & ~dSDA & sSCL;
+	    end
 
 	// generate i2c bus busy signal
 	always @(posedge clk or negedge nReset)
@@ -241,13 +272,26 @@ module i2c_master_bit_ctrl(
 	// 1) master drives SDA high, but the i2c bus is low
 	// 2) stop detected while not requested
 	reg cmd_stop, dcmd_stop;
-	always @(posedge clk)
-	begin
-	  cmd_stop  <= #1 cmd == `I2C_CMD_STOP;
-	  dcmd_stop <= #1 cmd_stop;
+	always @(posedge clk or negedge nReset)
+	  if (~nReset)
+	    begin
+	        cmd_stop  <= #1 1'b0;
+	        dcmd_stop <= #1 1'b0;
+	        al        <= #1 1'b0;
+	    end
+	  else if (rst)
+	    begin
+	        cmd_stop  <= #1 1'b0;
+	        dcmd_stop <= #1 1'b0;
+	        al        <= #1 1'b0;
+	    end
+	  else
+	    begin
+	        cmd_stop  <= #1 cmd == `I2C_CMD_STOP;
+	        dcmd_stop <= #1 cmd_stop;
+	        al        <= #1 (sda_chk & ~sSDA & sda_oen) | (sto_condition & ~dcmd_stop);
+	    end
 
-	  al <= #1 (sda_chk & ~sSDA & sda_oen) | (sto_condition & ~dcmd_stop);
-	end
 
 	// generate dout signal (store SDA on rising edge of SCL)
 	always @(posedge clk)
