@@ -37,16 +37,19 @@
 
 --  CVS Log
 --
---  $Id: i2c_master_top.vhd,v 1.4 2002-12-26 16:05:47 rherveille Exp $
+--  $Id: i2c_master_top.vhd,v 1.5 2003-02-01 02:03:06 rherveille Exp $
 --
---  $Date: 2002-12-26 16:05:47 $
---  $Revision: 1.4 $
+--  $Date: 2003-02-01 02:03:06 $
+--  $Revision: 1.5 $
 --  $Author: rherveille $
 --  $Locker:  $
 --  $State: Exp $
 --
 -- Change History:
 --               $Log: not supported by cvs2svn $
+--               Revision 1.4  2002/12/26 16:05:47  rherveille
+--               Core is now a Multimaster I2C controller.
+--
 --               Revision 1.3  2002/11/30 22:24:37  rherveille
 --               Cleaned up code
 --
@@ -337,7 +340,8 @@ begin
 	    -- assign status register bits
 	    sr(7)          <= rxack;
 	    sr(6)          <= i2c_busy;
-	    sr(5 downto 2) <= (others => '0'); -- reserved
+	    sr(5)          <= al;
+	    sr(4 downto 2) <= (others => '0'); -- reserved
 	    sr(1)          <= tip;
 	    sr(0)          <= irq_flag;
 	end block;

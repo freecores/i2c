@@ -37,16 +37,19 @@
 
 --  CVS Log
 --
---  $Id: i2c_master_bit_ctrl.vhd,v 1.5 2002-12-26 16:05:47 rherveille Exp $
+--  $Id: i2c_master_bit_ctrl.vhd,v 1.6 2003-02-01 02:03:06 rherveille Exp $
 --
---  $Date: 2002-12-26 16:05:47 $
---  $Revision: 1.5 $
+--  $Date: 2003-02-01 02:03:06 $
+--  $Revision: 1.6 $
 --  $Author: rherveille $
 --  $Locker:  $
 --  $State: Exp $
 --
 -- Change History:
 --               $Log: not supported by cvs2svn $
+--               Revision 1.5  2002/12/26 16:05:47  rherveille
+--               Core is now a Multimaster I2C controller.
+--
 --               Revision 1.4  2002/11/30 22:24:37  rherveille
 --               Cleaned up code
 --
@@ -148,7 +151,8 @@ architecture structural of i2c_master_bit_ctrl is
 	signal sda_chk            : std_logic;          -- check SDA status (multi-master arbitration)
 	signal dscl_oen           : std_logic;          -- delayed scl_oen signals
 	signal sSCL, sSDA         : std_logic;          -- synchronized SCL and SDA inputs
-	signal clk_en, slave_wait :std_logic;           -- clock generation signals
+	signal clk_en, slave_wait : std_logic;          -- clock generation signals
+	signal ial                : std_logic;          -- internal arbitration lost signal
 --	signal cnt : unsigned(15 downto 0) := clk_cnt;  -- clock divider counter (simulation)
 	signal cnt : unsigned(15 downto 0);             -- clock divider counter (synthesis)
 
@@ -253,7 +257,8 @@ begin
 	        al <= (sda_chk and not sSDA and isda_oen) or (sto_condition and not dcmd_stop);
 	      end if;
 	    end process gen_al;
-	    
+	    ial <= al;
+
 	    -- generate dout signal, store dout on rising edge of SCL
 	    gen_dout: process(clk)
 	    begin
@@ -276,7 +281,7 @@ begin
 	      isda_oen <= '1';
 	      sda_chk  <= '0';
 	    elsif (clk'event and clk = '1') then
-	      if (rst = '1') then
+	      if (rst = '1' or ial = '1') then
 	        c_state  <= idle;
 	        cmd_ack  <= '0';
 	        iscl_oen <= '1';
@@ -426,3 +431,4 @@ begin
 	sda_o   <= '0';
 	sda_oen <= isda_oen;
 end architecture structural;
+
