@@ -37,16 +37,19 @@
 
 //  CVS Log
 //
-//  $Id: i2c_master_top.v,v 1.10 2003-09-01 10:34:38 rherveille Exp $
+//  $Id: i2c_master_top.v,v 1.11 2005-02-27 09:26:24 rherveille Exp $
 //
-//  $Date: 2003-09-01 10:34:38 $
-//  $Revision: 1.10 $
+//  $Date: 2005-02-27 09:26:24 $
+//  $Revision: 1.11 $
 //  $Author: rherveille $
 //  $Locker:  $
 //  $State: Exp $
 //
 // Change History:
 //               $Log: not supported by cvs2svn $
+//               Revision 1.10  2003/09/01 10:34:38  rherveille
+//               Fix a blocking vs. non-blocking error in the wb_dat output mux.
+//
 //               Revision 1.9  2003/01/09 16:44:45  rherveille
 //               Fixed a bug in the Command Register declaration.
 //
@@ -155,7 +158,7 @@ module i2c_master_top(
 	// assign DAT_O
 	always @(posedge wb_clk_i)
 	begin
-	  case (wb_adr_i) // synopsis full_case parallel_case
+	  case (wb_adr_i) // synopsis parallel_case
 	    3'b000: wb_dat_o <= #1 prer[ 7:0];
 	    3'b001: wb_dat_o <= #1 prer[15:8];
 	    3'b010: wb_dat_o <= #1 ctr;
@@ -183,11 +186,12 @@ module i2c_master_top(
 	    end
 	  else
 	    if (wb_wacc)
-	      case (wb_adr_i) // synopsis full_case parallel_case
+	      case (wb_adr_i) // synopsis parallel_case
 	         3'b000 : prer [ 7:0] <= #1 wb_dat_i;
 	         3'b001 : prer [15:8] <= #1 wb_dat_i;
 	         3'b010 : ctr         <= #1 wb_dat_i;
 	         3'b011 : txr         <= #1 wb_dat_i;
+	         default: ;
 	      endcase
 
 	// generate command register (special case)
