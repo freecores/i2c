@@ -37,16 +37,20 @@
 
 --  CVS Log
 --
---  $Id: i2c_master_top.vhd,v 1.6 2003-08-09 07:01:13 rherveille Exp $
+--  $Id: i2c_master_top.vhd,v 1.7 2004-03-14 10:17:03 rherveille Exp $
 --
---  $Date: 2003-08-09 07:01:13 $
---  $Revision: 1.6 $
+--  $Date: 2004-03-14 10:17:03 $
+--  $Revision: 1.7 $
 --  $Author: rherveille $
 --  $Locker:  $
 --  $State: Exp $
 --
 -- Change History:
 --               $Log: not supported by cvs2svn $
+--               Revision 1.6  2003/08/09 07:01:13  rherveille
+--               Fixed a bug in the Arbitration Lost generation caused by delay on the (external) sda line.
+--               Fixed a potential bug in the byte controller's host-acknowledge generation.
+--
 --               Revision 1.5  2003/02/01 02:03:06  rherveille
 --               Fixed a few 'arbitration lost' bugs. VHDL version only.
 --
@@ -219,6 +223,7 @@ begin
 	           when "001" => prer(15 downto 8) <= unsigned(wb_dat_i);
 	           when "010" => ctr               <= wb_dat_i;
 	           when "011" => txr               <= wb_dat_i;
+	           when "100" => null; --write to CR, avoid executing the others clause
 
 	           -- illegal cases, for simulation only
 	           when others =>
