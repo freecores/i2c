@@ -37,16 +37,21 @@
 
 --  CVS Log
 --
---  $Id: i2c_master_bit_ctrl.vhd,v 1.1 2001-11-05 12:02:33 rherveille Exp $
+--  $Id: i2c_master_bit_ctrl.vhd,v 1.2 2002-06-15 07:37:04 rherveille Exp $
 --
---  $Date: 2001-11-05 12:02:33 $
---  $Revision: 1.1 $
+--  $Date: 2002-06-15 07:37:04 $
+--  $Revision: 1.2 $
 --  $Author: rherveille $
 --  $Locker:  $
 --  $State: Exp $
 --
 -- Change History:
 --               $Log: not supported by cvs2svn $
+--               Revision 1.1  2001/11/05 12:02:33  rherveille
+--               Split i2c_master_core.vhd into separate files for each entity; same layout as verilog version.
+--               Code updated, is now up-to-date to doc. rev.0.4.
+--               Added headers.
+--
 
 
 --
@@ -122,20 +127,21 @@ entity i2c_master_bit_ctrl is
 end entity i2c_master_bit_ctrl;
 
 architecture structural of i2c_master_bit_ctrl is
-	constant I2C_CMD_NOP  	: std_logic_vector(3 downto 0) := "0000";
-	constant I2C_CMD_START	: std_logic_vector(3 downto 0) := "0001";
-	constant I2C_CMD_STOP	 : std_logic_vector(3 downto 0) := "0010";
-	constant I2C_CMD_READ	 : std_logic_vector(3 downto 0) := "0100";
-	constant I2C_CMD_WRITE	: std_logic_vector(3 downto 0) := "1000";
+	constant I2C_CMD_NOP    : std_logic_vector(3 downto 0) := "0000";
+	constant I2C_CMD_START  : std_logic_vector(3 downto 0) := "0001";
+	constant I2C_CMD_STOP   : std_logic_vector(3 downto 0) := "0010";
+	constant I2C_CMD_READ   : std_logic_vector(3 downto 0) := "0100";
+	constant I2C_CMD_WRITE  : std_logic_vector(3 downto 0) := "1000";
 
 	type states is (idle, start_a, start_b, start_c, start_d, stop_a, stop_b, stop_c, rd_a, rd_b, rd_c, rd_d, wr_a, wr_b, wr_c, wr_d);
 	signal c_state : states;
 
-	signal iscl_oen, isda_oen : std_logic;		-- internal I2C lines
-	signal sSCL, sSDA : std_logic;			       -- synchronized SCL and SDA inputs
+	signal iscl_oen, isda_oen : std_logic;          -- internal I2C lines
+	signal sSCL, sSDA         : std_logic;          -- synchronized SCL and SDA inputs
+	signal dscl_oen           : std_logic;          -- delayed scl_oen signals
 
-	signal clk_en, slave_wait :std_logic;		-- clock generation signals
---	signal cnt : unsigned(15 downto 0) := clk_cnt;	-- clock divider counter (simulation)
+	signal clk_en, slave_wait :std_logic;           -- clock generation signals
+--	signal cnt : unsigned(15 downto 0) := clk_cnt;  -- clock divider counter (simulation)
 	signal cnt : unsigned(15 downto 0);             -- clock divider counter (synthesis)
 
 begin
@@ -148,8 +154,16 @@ begin
 		end if;
 	end process synch_SCL_SDA;
 	
+	-- delay scl_oen
+	process (clk)
+	begin
+		if (clk'event and clk = '1') then
+			dscl_oen <= iscl_oen after Tcq;
+		end if;
+	end process;
+
 	-- whenever the slave is not ready it can delay the cycle by pulling SCL low
-	slave_wait <= iscl_oen and not sSCL;
+	slave_wait <= dscl_oen and not sSCL;
 
 	-- generate clk enable signal
 	gen_clken: process(clk, nReset)

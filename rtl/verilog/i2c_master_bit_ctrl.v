@@ -37,16 +37,21 @@
 
 //  CVS Log
 //
-//  $Id: i2c_master_bit_ctrl.v,v 1.2 2001-11-05 11:59:25 rherveille Exp $
+//  $Id: i2c_master_bit_ctrl.v,v 1.3 2002-06-15 07:37:03 rherveille Exp $
 //
-//  $Date: 2001-11-05 11:59:25 $
-//  $Revision: 1.2 $
+//  $Date: 2002-06-15 07:37:03 $
+//  $Revision: 1.3 $
 //  $Author: rherveille $
 //  $Locker:  $
 //  $State: Exp $
 //
 // Change History:
 //               $Log: not supported by cvs2svn $
+//               Revision 1.2  2001/11/05 11:59:25  rherveille
+//               Fixed wb_ack_o generation bug.
+//               Fixed bug in the byte_controller statemachine.
+//               Added headers.
+//
 
 //
 /////////////////////////////////////
@@ -127,10 +132,11 @@ module i2c_master_bit_ctrl(clk, rst, nReset, clk_cnt, ena, cmd, cmd_ack, busy, d
 	// variable declarations
 	//
 
-	reg sSCL, sSDA;      			    // synchronized SCL and SDA inputs
+	reg sSCL, sSDA;             // synchronized SCL and SDA inputs
+	reg dscl_oen;               // delayed scl_oen
 	reg clk_en;                 // clock generation signals
 	wire slave_wait;
-//	reg [15:0] cnt = clk_cnt;	  // clock divider counter (simulation)
+//	reg [15:0] cnt = clk_cnt;   // clock divider counter (simulation)
 	reg [15:0] cnt;             // clock divider counter (synthesis)
 
 	//
@@ -138,14 +144,18 @@ module i2c_master_bit_ctrl(clk, rst, nReset, clk_cnt, ena, cmd, cmd_ack, busy, d
 	//
 
 	// synchronize SCL and SDA inputs
-	always@(posedge clk)
+	always @(posedge clk)
 		begin
 			sSCL <= #1 scl_i;
 			sSDA <= #1 sda_i;
 		end
 
+	// delay scl_oen
+	always @(posedge clk)
+		dscl_oen <= #1 scl_oen;
+
 	// whenever the slave is not ready it can delay the cycle by pulling SCL low
-	assign slave_wait = scl_oen && !sSCL;
+	assign slave_wait = dscl_oen && !sSCL;
 
 	// generate clk enable signal
 	always@(posedge clk or negedge nReset)
