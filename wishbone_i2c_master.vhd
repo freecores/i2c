@@ -2,8 +2,8 @@
 -- WISHBONE revB2 compiant I2C master core
 --
 -- author: Richard Herveille
--- rev. 0.1 
--- based on simple_i2c
+-- rev. 0.1 based on simple_i2c
+-- rev. 0.2 27th april 2001, fixed incomplete sensitivity list on assign_dato process (thanks to Matt Oseman)
 --
 -- Changes compared to simple_i2c
 -- 1) WISHBONE interface
@@ -103,8 +103,7 @@ begin
 
 
 	-- assign DAT_O
-	assign_dato : process(ADR_I)
-		variable muxD : std_logic_vector(15 downto 0);
+	assign_dato : process(ADR_I, prer, ctr, txt, cr, rxr, sr)
 	begin
 		case ADR_I is
 			when "00" =>
