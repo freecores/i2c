@@ -1,10 +1,52 @@
-//
-// WISHBONE revB2 compiant I2C master core, bit controller
-//
-// author: Richard Herveille
-// rev. 0.1 August 19th, 2001. Initial Verilog release.
-//
+/////////////////////////////////////////////////////////////////////
+////                                                             ////
+////  WISHBONE rev.B2 compliant I2C Master bit-controller        ////
+////                                                             ////
+////                                                             ////
+////  Author: Richard Herveille                                  ////
+////          richard@asics.ws                                   ////
+////          www.asics.ws                                       ////
+////                                                             ////
+////  Downloaded from: http://www.opencores.org/projects/i2c/    ////
+////                                                             ////
+/////////////////////////////////////////////////////////////////////
+////                                                             ////
+//// Copyright (C) 2001 Richard Herveille                        ////
+////                    richard@asics.ws                         ////
+////                                                             ////
+//// This source file may be used and distributed without        ////
+//// restriction provided that this copyright statement is not   ////
+//// removed from the file and that any derivative work contains ////
+//// the original copyright notice and the associated disclaimer.////
+////                                                             ////
+////     THIS SOFTWARE IS PROVIDED ``AS IS'' AND WITHOUT ANY     ////
+//// EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED   ////
+//// TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS   ////
+//// FOR A PARTICULAR PURPOSE. IN NO EVENT SHALL THE AUTHOR      ////
+//// OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,         ////
+//// INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES    ////
+//// (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE   ////
+//// GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR        ////
+//// BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF  ////
+//// LIABILITY, WHETHER IN  CONTRACT, STRICT LIABILITY, OR TORT  ////
+//// (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT  ////
+//// OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE         ////
+//// POSSIBILITY OF SUCH DAMAGE.                                 ////
+////                                                             ////
+/////////////////////////////////////////////////////////////////////
 
+//  CVS Log
+//
+//  $Id: i2c_master_bit_ctrl.v,v 1.2 2001-11-05 11:59:25 rherveille Exp $
+//
+//  $Date: 2001-11-05 11:59:25 $
+//  $Revision: 1.2 $
+//  $Author: rherveille $
+//  $Locker:  $
+//  $State: Exp $
+//
+// Change History:
+//               $Log: not supported by cvs2svn $
 
 //
 /////////////////////////////////////
@@ -109,12 +151,12 @@ module i2c_master_bit_ctrl(clk, rst, nReset, clk_cnt, ena, cmd, cmd_ack, busy, d
 	always@(posedge clk or negedge nReset)
 		if (!nReset)
 			begin
-				cnt    <= #1 15'h0;
+				cnt    <= #1 16'h0;
 				clk_en <= #1 1'b1;
 			end
 		else if (rst)
 			begin
-				cnt    <= #1 15'h0;
+				cnt    <= #1 16'h0;
 				clk_en <= #1 1'b1;
 			end
 		else if ( !(|cnt) || !ena)
@@ -125,7 +167,7 @@ module i2c_master_bit_ctrl(clk, rst, nReset, clk_cnt, ena, cmd, cmd_ack, busy, d
 		else
 			begin
 				if (!slave_wait)
-					cnt <= #1 cnt - 1'h1;
+					cnt <= #1 cnt - 16'h1;
 
 				clk_en <= #1 1'b0;
 			end
@@ -427,10 +469,3 @@ module i2c_master_bit_ctrl(clk, rst, nReset, clk_cnt, ena, cmd, cmd_ack, busy, d
 			endcase
 
 endmodule
-
-
-
-
-
-
-
