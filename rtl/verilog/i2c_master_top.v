@@ -37,16 +37,19 @@
 
 //  CVS Log
 //
-//  $Id: i2c_master_top.v,v 1.9 2003-01-09 16:44:45 rherveille Exp $
+//  $Id: i2c_master_top.v,v 1.10 2003-09-01 10:34:38 rherveille Exp $
 //
-//  $Date: 2003-01-09 16:44:45 $
-//  $Revision: 1.9 $
+//  $Date: 2003-09-01 10:34:38 $
+//  $Revision: 1.10 $
 //  $Author: rherveille $
 //  $Locker:  $
 //  $State: Exp $
 //
 // Change History:
 //               $Log: not supported by cvs2svn $
+//               Revision 1.9  2003/01/09 16:44:45  rherveille
+//               Fixed a bug in the Command Register declaration.
+//
 //               Revision 1.8  2002/12/26 16:05:12  rherveille
 //               Small code simplifications
 //
@@ -153,14 +156,14 @@ module i2c_master_top(
 	always @(posedge wb_clk_i)
 	begin
 	  case (wb_adr_i) // synopsis full_case parallel_case
-	    3'b000: wb_dat_o = prer[ 7:0];
-	    3'b001: wb_dat_o = prer[15:8];
-	    3'b010: wb_dat_o = ctr;
-	    3'b011: wb_dat_o = rxr; // write is transmit register (txr)
-	    3'b100: wb_dat_o = sr;  // write is command register (cr)
-	    3'b101: wb_dat_o = txr;
-	    3'b110: wb_dat_o = cr;
-	    3'b111: wb_dat_o = 0;   // reserved
+	    3'b000: wb_dat_o <= #1 prer[ 7:0];
+	    3'b001: wb_dat_o <= #1 prer[15:8];
+	    3'b010: wb_dat_o <= #1 ctr;
+	    3'b011: wb_dat_o <= #1 rxr; // write is transmit register (txr)
+	    3'b100: wb_dat_o <= #1 sr;  // write is command register (cr)
+	    3'b101: wb_dat_o <= #1 txr;
+	    3'b110: wb_dat_o <= #1 cr;
+	    3'b111: wb_dat_o <= #1 0;   // reserved
 	  endcase
 	end
 
