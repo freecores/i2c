@@ -37,16 +37,20 @@
 
 --  CVS Log
 --
---  $Id: i2c_master_byte_ctrl.vhd,v 1.4 2003-08-09 07:01:13 rherveille Exp $
+--  $Id: i2c_master_byte_ctrl.vhd,v 1.5 2004-02-18 11:41:48 rherveille Exp $
 --
---  $Date: 2003-08-09 07:01:13 $
---  $Revision: 1.4 $
+--  $Date: 2004-02-18 11:41:48 $
+--  $Revision: 1.5 $
 --  $Author: rherveille $
 --  $Locker:  $
 --  $State: Exp $
 --
 -- Change History:
 --               $Log: not supported by cvs2svn $
+--               Revision 1.4  2003/08/09 07:01:13  rherveille
+--               Fixed a bug in the Arbitration Lost generation caused by delay on the (external) sda line.
+--               Fixed a potential bug in the byte controller's host-acknowledge generation.
+--
 --               Revision 1.3  2002/12/26 16:05:47  rherveille
 --               Core is now a Multimaster I2C controller.
 --
@@ -271,7 +275,6 @@ begin
 	                   else -- stop
 	                     c_state  <= st_stop;
 	                     core_cmd <= I2C_CMD_STOP;
-	                     host_ack <= '1'; -- generate acknowledge signal
 	                   end if;
 
 	                   ld <= '1';

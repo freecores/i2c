@@ -37,16 +37,20 @@
 
 //  CVS Log
 //
-//  $Id: i2c_master_byte_ctrl.v,v 1.6 2003-08-09 07:01:33 rherveille Exp $
+//  $Id: i2c_master_byte_ctrl.v,v 1.7 2004-02-18 11:40:46 rherveille Exp $
 //
-//  $Date: 2003-08-09 07:01:33 $
-//  $Revision: 1.6 $
+//  $Date: 2004-02-18 11:40:46 $
+//  $Revision: 1.7 $
 //  $Author: rherveille $
 //  $Locker:  $
 //  $State: Exp $
 //
 // Change History:
 //               $Log: not supported by cvs2svn $
+//               Revision 1.6  2003/08/09 07:01:33  rherveille
+//               Fixed a bug in the Arbitration Lost generation caused by delay on the (external) sda line.
+//               Fixed a potential bug in the byte controller's host-acknowledge generation.
+//
 //               Revision 1.5  2002/12/26 15:02:32  rherveille
 //               Core is now a Multimaster I2C controller
 //
@@ -220,7 +224,7 @@ module i2c_master_byte_ctrl (
 	      ld       <= #1 1'b0;
 	      cmd_ack  <= #1 1'b0;
 
-	      case (c_state) // synopsis full_case parallel_case
+	      case (c_state) // synopsys full_case parallel_case
 	        ST_IDLE:
 	          if (go)
 	            begin
@@ -243,9 +247,6 @@ module i2c_master_byte_ctrl (
 	                  begin
 	                      c_state  <= #1 ST_STOP;
 	                      core_cmd <= #1 `I2C_CMD_STOP;
-
-	                      // generate command acknowledge signal
-	                      cmd_ack  <= #1 1'b1;
 	                  end
 
 	                ld <= #1 1'b1;
@@ -319,9 +320,6 @@ module i2c_master_byte_ctrl (
 
 	                 // assign ack_out output to bit_controller_rxd (contains last received bit)
 	                 ack_out <= #1 core_rxd;
-
-//	                 // generate command acknowledge signal
-//	                 cmd_ack  <= #1 1'b1;
 
 	                 core_txd <= #1 1'b1;
 	             end
