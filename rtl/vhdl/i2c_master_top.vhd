@@ -37,16 +37,19 @@
 
 --  CVS Log
 --
---  $Id: i2c_master_top.vhd,v 1.3 2002-11-30 22:24:37 rherveille Exp $
+--  $Id: i2c_master_top.vhd,v 1.4 2002-12-26 16:05:47 rherveille Exp $
 --
---  $Date: 2002-11-30 22:24:37 $
---  $Revision: 1.3 $
+--  $Date: 2002-12-26 16:05:47 $
+--  $Revision: 1.4 $
 --  $Author: rherveille $
 --  $Locker:  $
 --  $State: Exp $
 --
 -- Change History:
 --               $Log: not supported by cvs2svn $
+--               Revision 1.3  2002/11/30 22:24:37  rherveille
+--               Cleaned up code
+--
 --               Revision 1.2  2001/11/10 10:52:44  rherveille
 --               Changed PRER reset value from 0x0000 to 0xffff, conform specs.
 --
@@ -106,6 +109,7 @@ architecture structural of i2c_master_top is
 		cmd_ack  : out std_logic;
 		ack_out  : out std_logic;
 		i2c_busy : out std_logic;
+		i2c_al   : out std_logic;
 		dout     : out std_logic_vector(7 downto 0);
 
 		-- i2c lines
@@ -129,6 +133,9 @@ architecture structural of i2c_master_top is
 	-- internal reset signal
 	signal rst_i : std_logic;
 
+	-- wishbone write access
+	signal wb_wacc : std_logic;
+
 	-- internal acknowledge signal
 	signal iack_o : std_logic;
 
@@ -138,15 +145,15 @@ architecture structural of i2c_master_top is
 	-- command register signals
 	signal sta, sto, rd, wr, ack, iack : std_logic;
 
-	-- core enable signal
-	signal core_en : std_logic;
-	signal ien : std_logic;
+	signal core_en : std_logic;                      -- core enable signal
+	signal ien     : std_logic;                      -- interrupt enable signal
 
 	-- status register signals
 	signal irxack, rxack : std_logic;                -- received aknowledge from slave
-	signal tip : std_logic;                          -- transfer in progress
-	signal irq_flag : std_logic;                     -- interrupt pending flag
-	signal i2c_busy : std_logic;                     -- bus busy (start signal detected)
+	signal tip           : std_logic;                -- transfer in progress
+	signal irq_flag      : std_logic;                -- interrupt pending flag
+	signal i2c_busy      : std_logic;                -- i2c bus busy (start signal detected)
+	signal i2c_al, al    : std_logic;                -- arbitration lost
 
 begin
 	-- generate internal reset signal
@@ -159,9 +166,11 @@ begin
 	      iack_o <= wb_cyc_i and wb_stb_i and not iack_o;         -- because timing is always honored
 	    end if;
 	end process gen_ack_o;
-
 	wb_ack_o <= iack_o;
-
+	
+	
+	-- generate wishbone write access signal
+	wb_wacc <= wb_cyc_i and wb_stb_i and wb_we_i;
 
 	-- assign wb_dat_o
 	assign_dato : process(wb_clk_i)
@@ -186,57 +195,62 @@ begin
 	end process assign_dato;
 
 
-	-- registers block
-	regs_block: process(rst_i, wb_clk_i)
+	-- generate registers (CR, SR see below)
+	gen_regs: process(rst_i, wb_clk_i)
 	begin
 	    if (rst_i = '0') then
 	      prer <= (others => '1');
 	      ctr  <= (others => '0');
 	      txr  <= (others => '0');
-	      cr   <= (others => '0');
 	    elsif (wb_clk_i'event and wb_clk_i = '1') then
 	      if (wb_rst_i = '1') then
 	        prer <= (others => '1');
 	        ctr  <= (others => '0');
 	        txr  <= (others => '0');
-	        cr   <= (others => '0');
-	      else
-	        if (wb_cyc_i = '1' and wb_stb_i = '1' and wb_we_i = '1') then
-	          if (wb_adr_i(2) = '0') then
-	            case wb_adr_i(1 downto 0) is
-	              when "00" => prer( 7 downto 0) <= unsigned(wb_dat_i);
-	              when "01" => prer(15 downto 8) <= unsigned(wb_dat_i);
-	              when "10" => ctr               <= wb_dat_i;
-	              when "11" => txr               <= wb_dat_i;
+	      elsif (wb_wacc = '1') then
+	        case wb_adr_i is
+	           when "000" => prer( 7 downto 0) <= unsigned(wb_dat_i);
+	           when "001" => prer(15 downto 8) <= unsigned(wb_dat_i);
+	           when "010" => ctr               <= wb_dat_i;
+	           when "011" => txr               <= wb_dat_i;
 
-	              -- illegal cases, for simulation only
-	              when others =>
-	                 report ("Illegal write address, setting all registers to unknown.");
-	                 prer <= (others => 'X');
-	                 ctr  <= (others => 'X');
-	                 txr  <= (others => 'X');
-	            end case;
-	          elsif ( (core_en = '1') and (wb_adr_i(1 downto 0) = 0) ) then
-	            -- only take new commands when i2c ore enabled
-	            -- pending commands are finished
-	            cr <= wb_dat_i;
-	          end if;
-	        else
-	          -- clear command bits when done
-	          if (done = '1') then
-	            cr(7 downto 4) <= (others => '0');
-	          end if;
-
-	          -- reserved bits
-	          cr(2 downto 1) <= (others => '0');
-
-	          -- clear iack when irq_flag cleared
-	          cr(0) <= cr(0) and irq_flag;
-	        end if;
+	           -- illegal cases, for simulation only
+	           when others =>
+	              report ("Illegal write address, setting all registers to unknown.");
+	              prer <= (others => 'X');
+	              ctr  <= (others => 'X');
+	              txr  <= (others => 'X');
+	        end case;
 	      end if;
 	    end if;
-	end process regs_block;
+	end process gen_regs;
 
+
+	-- generate command register
+	gen_cr: process(rst_i, wb_clk_i)
+	begin
+	    if (rst_i = '0') then
+	      cr <= (others => '0');
+	    elsif (wb_clk_i'event and wb_clk_i = '1') then
+	      if (wb_rst_i = '1') then
+	        cr <= (others => '0');
+	      elsif (wb_wacc = '1') then
+	        if ( (core_en = '1') and (wb_adr_i = 4) ) then
+	          -- only take new commands when i2c core enabled
+	          -- pending commands are finished
+	          cr <= wb_dat_i;
+			end if;
+	      else
+	          if (done = '1' or i2c_al = '1') then
+	            cr(7 downto 4) <= (others => '0'); -- clear command bits when command done
+	                                               -- or arbitration lost
+			  end if;
+
+	          cr(2 downto 1) <= (others => '0');   -- reserved bits, always '0'
+	          cr(0) <= '0';                        -- clear IRQ_ACK bit
+	      end if;
+	    end if;
+	end process gen_cr;
 
 	-- decode command register
 	sta  <= cr(7);
@@ -251,7 +265,7 @@ begin
 	ien     <= ctr(6);
 
 	-- hookup byte controller block
-	u1: i2c_master_byte_ctrl port map (
+	byte_ctrl: i2c_master_byte_ctrl port map (
 		clk      => wb_clk_i,
 		rst      => wb_rst_i,
 		nReset   => rst_i,
@@ -263,6 +277,7 @@ begin
 		write    => wr,
 		ack_in   => ack,
 		i2c_busy => i2c_busy,
+		i2c_al   => i2c_al,
 		din      => txr,
 		cmd_ack  => done,
 		ack_out  => irxack,
@@ -283,20 +298,23 @@ begin
 	    gen_sr_bits: process (wb_clk_i, rst_i)
 	    begin
 	        if (rst_i = '0') then
+	          al       <= '0';
 	          rxack    <= '0';
 	          tip      <= '0';
 	          irq_flag <= '0';
 	        elsif (wb_clk_i'event and wb_clk_i = '1') then
 	          if (wb_rst_i = '1') then
+	            al       <= '0';
 	            rxack    <= '0';
 	            tip      <= '0';
 	            irq_flag <= '0';
 	          else
+	            al       <= i2c_al or (al and not sta);
 	            rxack    <= irxack;
 	            tip      <= (rd or wr);
 
 	            -- interrupt request flag is always generated
-	            irq_flag <= (done or irq_flag) and not iack;
+	            irq_flag <= (done or i2c_al or irq_flag) and not iack;
 	          end if;
 	        end if;
 	    end process gen_sr_bits;

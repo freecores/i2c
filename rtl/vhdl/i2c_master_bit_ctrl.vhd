@@ -37,16 +37,19 @@
 
 --  CVS Log
 --
---  $Id: i2c_master_bit_ctrl.vhd,v 1.4 2002-11-30 22:24:37 rherveille Exp $
+--  $Id: i2c_master_bit_ctrl.vhd,v 1.5 2002-12-26 16:05:47 rherveille Exp $
 --
---  $Date: 2002-11-30 22:24:37 $
---  $Revision: 1.4 $
+--  $Date: 2002-12-26 16:05:47 $
+--  $Revision: 1.5 $
 --  $Author: rherveille $
 --  $Locker:  $
 --  $State: Exp $
 --
 -- Change History:
 --               $Log: not supported by cvs2svn $
+--               Revision 1.4  2002/11/30 22:24:37  rherveille
+--               Cleaned up code
+--
 --               Revision 1.3  2002/10/30 18:09:53  rherveille
 --               Fixed some reported minor start/stop generation timing issuess.
 --
@@ -68,25 +71,25 @@
 -- Translate simple commands into SCL/SDA transitions
 -- Each command has 5 states, A/B/C/D/idle
 --
--- start:	SCL	~~~~~~~~~~\____
---	SDA	~~~~~~~~\______
---		 x | A | B | C | D | i
+-- start:    SCL  ~~~~~~~~~~~~~~\____
+--	     SDA  XX/~~~~~~~\______
+--	          x | A | B | C | D | i
 --
--- repstart	SCL	____/~~~~\___
---	SDA	__/~~~\______
---		 x | A | B | C | D | i
+-- repstart  SCL  ______/~~~~~~~\___
+--	     SDA  __/~~~~~~~\______
+--	          x | A | B | C | D | i
 --
--- stop	SCL	____/~~~~~~~~
---	SDA	==\____/~~~~~
---		 x | A | B | C | D | i
+-- stop      SCL  _______/~~~~~~~~~~~
+--	     SDA  ==\___________/~~~~~
+--	          x | A | B | C | D | i
 --
---- write	SCL	____/~~~~\____
---	SDA	==X=========X=
---		 x | A | B | C | D | i
+--- write    SCL  ______/~~~~~~~\____
+--	     SDA  XXX===============XX
+--	          x | A | B | C | D | i
 --
---- read	SCL	____/~~~~\____
---	SDA	XXXX=====XXXX
---		 x | A | B | C | D | i
+--- read     SCL  ______/~~~~~~~\____
+--	     SDA  XXXXXXX=XXXXXXXXXXX
+--	          x | A | B | C | D | i
 --
 
 -- Timing:      Normal mode     Fast mode
@@ -113,8 +116,9 @@ entity i2c_master_bit_ctrl is
 		clk_cnt : in unsigned(15 downto 0);		-- clock prescale value
 
 		cmd     : in std_logic_vector(3 downto 0);
-		cmd_ack : out std_logic;
-		busy    : out std_logic;
+		cmd_ack : out std_logic; -- command completed
+		busy    : out std_logic; -- i2c bus busy
+		al      : out std_logic; -- arbitration lost
 
 		din  : in std_logic;
 		dout : out std_logic;
@@ -141,23 +145,15 @@ architecture structural of i2c_master_bit_ctrl is
 	signal c_state : states;
 
 	signal iscl_oen, isda_oen : std_logic;          -- internal I2C lines
-	signal sSCL, sSDA         : std_logic;          -- synchronized SCL and SDA inputs
+	signal sda_chk            : std_logic;          -- check SDA status (multi-master arbitration)
 	signal dscl_oen           : std_logic;          -- delayed scl_oen signals
-
+	signal sSCL, sSDA         : std_logic;          -- synchronized SCL and SDA inputs
 	signal clk_en, slave_wait :std_logic;           -- clock generation signals
 --	signal cnt : unsigned(15 downto 0) := clk_cnt;  -- clock divider counter (simulation)
 	signal cnt : unsigned(15 downto 0);             -- clock divider counter (synthesis)
 
 begin
-	-- synchronize SCL and SDA inputs
-	synch_scl_sda: process(clk)
-	begin
-	    if (clk'event and clk = '1') then
-	      sSCL <= scl_i;
-	      sSDA <= sda_i;
-	    end if;
-	end process synch_SCL_SDA;
-
+	-- whenever the slave is not ready it can delay the cycle by pulling SCL low
 	-- delay scl_oen
 	process (clk)
 	begin
@@ -165,8 +161,6 @@ begin
 	      dscl_oen <= iscl_oen;
 	    end if;
 	end process;
-
-	-- whenever the slave is not ready it can delay the cycle by pulling SCL low
 	slave_wait <= dscl_oen and not sSCL;
 
 	-- generate clk enable signal
@@ -181,8 +175,13 @@ begin
 	        clk_en <= '1';
 	      else
 	        if ( (cnt = 0) or (ena = '0') ) then
-	          clk_en <= '1';
-	          cnt    <= clk_cnt;
+	          if (slave_wait = '0') then
+	            cnt    <= clk_cnt;
+	            clk_en <= '1';
+	          else
+	            cnt    <= cnt;
+	            clk_en <= '0';
+	          end if;
 	        else
 	          if (slave_wait = '0') then
 	            cnt <= cnt -1;
@@ -196,25 +195,35 @@ begin
 
 	-- generate bus status controller
 	bus_status_ctrl: block
-	  signal dSDA : std_logic;
-	  signal sta_condition : std_logic;
-	  signal sto_condition : std_logic;
-
-	  signal ibusy : std_logic;
+	  signal dSCL, dSDA          : std_logic;  -- delayes sSCL and sSDA
+	  signal sta_condition       : std_logic;  -- start detected
+	  signal sto_condition       : std_logic;  -- stop detected
+	  signal cmd_stop, dcmd_stop : std_logic;  -- STOP command
+	  signal ibusy               : std_logic;  -- internal busy signal
 	begin
+	    -- synchronize SCL and SDA inputs
+	    synch_scl_sda: process(clk)
+	    begin
+	        if (clk'event and clk = '1') then
+	          sSCL <= scl_i;
+	          sSDA <= sda_i;
+
+	          dSCL <= sSCL;
+	          dSDA <= sSDA;
+	        end if;
+	    end process synch_SCL_SDA;
+
 	    -- detect start condition => detect falling edge on SDA while SCL is high
 	    -- detect stop condition  => detect rising edge on SDA while SCL is high
 	    detect_sta_sto: process(clk)
 	    begin
 	        if (clk'event and clk = '1') then
-	          dSDA <= sSDA; -- generate a delayed version of sSDA
-
 	          sta_condition <= (not sSDA and dSDA) and sSCL;
 	          sto_condition <= (sSDA and not dSDA) and sSCL;
 	        end if;
 	    end process detect_sta_sto;
 
-	    -- generate bus busy signal
+	    -- generate i2c-bus busy signal
 	    gen_busy: process(clk, nReset)
 	    begin
 	        if (nReset = '0') then
@@ -227,9 +236,33 @@ begin
 	          end if;
 	        end if;
 	    end process gen_busy;
-
-	    -- assign output
 	    busy <= ibusy;
+
+
+	    -- generate arbitration lost signal
+	    gen_al: process(clk)
+	    begin
+	      if (clk'event and clk = '1') then
+		    if (cmd = I2C_CMD_STOP) then
+	          cmd_stop <= '1';
+			else
+			  cmd_stop <= '0';
+			end if;
+	        dcmd_stop <= cmd_stop;
+
+	        al <= (sda_chk and not sSDA and isda_oen) or (sto_condition and not dcmd_stop);
+	      end if;
+	    end process gen_al;
+	    
+	    -- generate dout signal, store dout on rising edge of SCL
+	    gen_dout: process(clk)
+	    begin
+	      if (clk'event and clk = '1') then
+	        if (sSCL = '1' and dSCL = '0') then
+	          dout <= sSDA;
+	        end if;
+	      end if;
+	    end process gen_dout;
 	end block bus_status_ctrl;
 
 
@@ -239,16 +272,16 @@ begin
 	    if (nReset = '0') then
 	      c_state  <= idle;
 	      cmd_ack  <= '0';
-	      dout     <= '0';
 	      iscl_oen <= '1';
 	      isda_oen <= '1';
+	      sda_chk  <= '0';
 	    elsif (clk'event and clk = '1') then
 	      if (rst = '1') then
 	        c_state  <= idle;
 	        cmd_ack  <= '0';
-	        dout     <= '0';
 	        iscl_oen <= '1';
 	        isda_oen <= '1';
+	        sda_chk  <= '0';
 	      else
 	        cmd_ack <= '0'; -- default no acknowledge
 
@@ -266,100 +299,117 @@ begin
 
 	                iscl_oen <= iscl_oen; -- keep SCL in same state
 	                isda_oen <= isda_oen; -- keep SDA in same state
+	                sda_chk  <= '0';      -- don't check SDA
 
 	             -- start
 	             when start_a =>
 	                c_state  <= start_b;
 	                iscl_oen <= iscl_oen; -- keep SCL in same state (for repeated start)
 	                isda_oen <= '1';      -- set SDA high
+	                sda_chk  <= '0';      -- don't check SDA
 
 	             when start_b =>
 	                c_state  <= start_c;
 	                iscl_oen <= '1'; -- set SCL high
 	                isda_oen <= '1'; -- keep SDA high
+	                sda_chk  <= '0'; -- don't check SDA
 
 	             when start_c =>
 	                c_state  <= start_d;
 	                iscl_oen <= '1'; -- keep SCL high
 	                isda_oen <= '0'; -- set SDA low
+	                sda_chk  <= '0'; -- don't check SDA
 
 	             when start_d =>
 	                c_state  <= start_e;
 	                iscl_oen <= '1'; -- keep SCL high
 	                isda_oen <= '0'; -- keep SDA low
+	                sda_chk  <= '0'; -- don't check SDA
 
 	             when start_e =>
 	                c_state  <= idle;
 	                cmd_ack  <= '1'; -- command completed
 	                iscl_oen <= '0'; -- set SCL low
 	                isda_oen <= '0'; -- keep SDA low
+	                sda_chk  <= '0'; -- don't check SDA
 
 	             -- stop
 	             when stop_a =>
 	                c_state  <= stop_b;
-	                iscl_oen <= '0'; -- keep SCL disabled
+	                iscl_oen <= '0'; -- keep SCL low
 	                isda_oen <= '0'; -- set SDA low
+	                sda_chk  <= '0'; -- don't check SDA
 
 	             when stop_b =>
 	                c_state  <= stop_c;
 	                iscl_oen <= '1'; -- set SCL high
 	                isda_oen <= '0'; -- keep SDA low
+	                sda_chk  <= '0'; -- don't check SDA
 
 	             when stop_c =>
 	                c_state  <= stop_d;
 	                iscl_oen <= '1'; -- keep SCL high
 	                isda_oen <= '0'; -- keep SDA low
+	                sda_chk  <= '0'; -- don't check SDA
 
 	             when stop_d =>
 	                c_state  <= idle;
 	                cmd_ack  <= '1'; -- command completed
 	                iscl_oen <= '1'; -- keep SCL high
 	                isda_oen <= '1'; -- set SDA high
+	                sda_chk  <= '0'; -- don't check SDA
 
 	             -- read
 	             when rd_a =>
 	                c_state  <= rd_b;
 	                iscl_oen <= '0'; -- keep SCL low
 	                isda_oen <= '1'; -- tri-state SDA
+	                sda_chk  <= '0'; -- don't check SDA
 
 	             when rd_b =>
 	                c_state  <= rd_c;
 	                iscl_oen <= '1'; -- set SCL high
 	                isda_oen <= '1'; -- tri-state SDA
+	                sda_chk  <= '0'; -- don't check SDA
 
 	             when rd_c =>
 	                c_state  <= rd_d;
-	                dout     <= sSDA;
 	                iscl_oen <= '1'; -- keep SCL high
 	                isda_oen <= '1'; -- tri-state SDA
+	                sda_chk  <= '0'; -- don't check SDA
 
 	             when rd_d =>
 	                c_state  <= idle;
 	                cmd_ack  <= '1'; -- command completed
 	                iscl_oen <= '0'; -- set SCL low
 	                isda_oen <= '1'; -- tri-state SDA
+	                sda_chk  <= '0'; -- don't check SDA
 
 	             -- write
 	             when wr_a =>
 	                c_state  <= wr_b;
 	                iscl_oen <= '0'; -- keep SCL low
 	                isda_oen <= din; -- set SDA
+	                sda_chk  <= '0'; -- don't check SDA (SCL low)
 
 	             when wr_b =>
 	                c_state  <= wr_c;
 	                iscl_oen <= '1'; -- set SCL high
 	                isda_oen <= din; -- keep SDA
+	                sda_chk  <= '1'; -- check SDA
 
 	             when wr_c =>
 	                c_state  <= wr_d;
 	                iscl_oen <= '1'; -- keep SCL high
 	                isda_oen <= din; -- keep SDA
+	                sda_chk  <= '1'; -- check SDA
 
 	             when wr_d =>
 	                c_state  <= idle;
 	                cmd_ack  <= '1'; -- command completed
 	                iscl_oen <= '0'; -- set SCL low
 	                isda_oen <= din; -- keep SDA
+	                sda_chk  <= '0'; -- don't check SDA (SCL low)
 
 	             when others =>
 

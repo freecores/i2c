@@ -37,16 +37,19 @@
 
 --  CVS Log
 --
---  $Id: i2c_master_byte_ctrl.vhd,v 1.2 2002-11-30 22:24:37 rherveille Exp $
+--  $Id: i2c_master_byte_ctrl.vhd,v 1.3 2002-12-26 16:05:47 rherveille Exp $
 --
---  $Date: 2002-11-30 22:24:37 $
---  $Revision: 1.2 $
+--  $Date: 2002-12-26 16:05:47 $
+--  $Revision: 1.3 $
 --  $Author: rherveille $
 --  $Locker:  $
 --  $State: Exp $
 --
 -- Change History:
 --               $Log: not supported by cvs2svn $
+--               Revision 1.2  2002/11/30 22:24:37  rherveille
+--               Cleaned up code
+--
 --               Revision 1.1  2001/11/05 12:02:33  rherveille
 --               Split i2c_master_core.vhd into separate files for each entity; same layout as verilog version.
 --               Code updated, is now up-to-date to doc. rev.0.4.
@@ -83,9 +86,10 @@ entity i2c_master_byte_ctrl is
 		din    : in std_logic_vector(7 downto 0);
 
 		-- output signals
-		cmd_ack  : out std_logic;
+		cmd_ack  : out std_logic; -- command done
 		ack_out  : out std_logic;
-		i2c_busy : out std_logic;
+		i2c_busy : out std_logic; -- arbitration lost
+		i2c_al   : out std_logic; -- i2c bus busy
 		dout     : out std_logic_vector(7 downto 0);
 
 		-- i2c lines
@@ -109,8 +113,9 @@ architecture structural of i2c_master_byte_ctrl is
 		clk_cnt : in unsigned(15 downto 0);		-- clock prescale value
 
 		cmd     : in std_logic_vector(3 downto 0);
-		cmd_ack : out std_logic;
-		busy    : out std_logic;
+		cmd_ack : out std_logic; -- command done
+		busy    : out std_logic; -- i2c bus busy
+		al      : out std_logic; -- arbitration lost
 
 		din  : in std_logic;
 		dout : out std_logic;
@@ -135,6 +140,7 @@ architecture structural of i2c_master_byte_ctrl is
 	-- signals for bit_controller
 	signal core_cmd : std_logic_vector(3 downto 0);
 	signal core_ack, core_txd, core_rxd : std_logic;
+	signal al : std_logic;
 
 	-- signals for shift register
 	signal sr : std_logic_vector(7 downto 0); -- 8bit shift register
@@ -147,7 +153,7 @@ architecture structural of i2c_master_byte_ctrl is
 
 begin
 	-- hookup bit_controller
-	u1: i2c_master_bit_ctrl port map(
+	bit_ctrl: i2c_master_bit_ctrl port map(
 		clk     => clk,
 		rst     => rst,
 		nReset  => nReset,
@@ -156,6 +162,7 @@ begin
 		cmd     => core_cmd,
 		cmd_ack => core_ack,
 		busy    => i2c_busy,
+		al      => al,
 		din     => core_txd,
 		dout    => core_rxd,
 		scl_i   => scl_i,
@@ -165,6 +172,7 @@ begin
 		sda_o   => sda_o,
 		sda_oen => sda_oen
 	);
+	i2c_al <= al;
 
 	-- generate host-command-acknowledge
 	cmd_ack <= host_ack;
@@ -230,7 +238,7 @@ begin
 	          c_state  <= st_idle;
 	          ack_out  <= '0';
 	        elsif (clk'event and clk = '1') then
-	          if (rst = '1') then
+	          if (rst = '1' or al = '1') then
 	            core_cmd <= I2C_CMD_NOP;
 	            core_txd <= '0';
 	            shift    <= '0';
