@@ -6,7 +6,7 @@
 -- that any derivative work contains the original       --
 -- copyright notice and the associated disclaimer.      --
 
---   Comments and suggestions are always welcom         --
+--   Comments and suggestions are always welcome        --
 
 The i2c_master core consists of three files:
 
