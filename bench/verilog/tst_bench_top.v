@@ -37,16 +37,20 @@
 
 //  CVS Log
 //
-//  $Id: tst_bench_top.v,v 1.3 2002-10-30 18:11:06 rherveille Exp $
+//  $Id: tst_bench_top.v,v 1.4 2003-12-05 11:04:38 rherveille Exp $
 //
-//  $Date: 2002-10-30 18:11:06 $
-//  $Revision: 1.3 $
+//  $Date: 2003-12-05 11:04:38 $
+//  $Revision: 1.4 $
 //  $Author: rherveille $
 //  $Locker:  $
 //  $State: Exp $
 //
 // Change History:
 //               $Log: not supported by cvs2svn $
+//               Revision 1.3  2002/10/30 18:11:06  rherveille
+//               Added timing tests to i2c_model.
+//               Updated testbench.
+//
 //               Revision 1.2  2002/03/17 10:26:38  rherveille
 //               Fixed some race conditions in the i2c-slave model.
 //               Added debug information.
@@ -75,6 +79,7 @@ module tst_bench_top();
 
 	wire scl, scl_o, scl_oen;
 	wire sda, sda_o, sda_oen;
+	reg rscl, rsda;
 
 	parameter PRER_LO = 3'b000;
 	parameter PRER_HI = 3'b001;
@@ -86,6 +91,10 @@ module tst_bench_top();
 
 	parameter TXR_R   = 3'b101; // undocumented / reserved output
 	parameter CR_R    = 3'b110; // undocumented / reserved output
+
+	parameter RD      = 1'b1;
+	parameter WR      = 1'b0;
+	parameter SADR    = 7'b0010_000;
 
 	//
 	// Module body
@@ -114,37 +123,40 @@ module tst_bench_top();
 	i2c_master_top i2c_top (
 
 		// wishbone interface
-		.wb_clk_i(clk), 
-		.wb_rst_i(1'b0), 
-		.arst_i(rstn), 
-		.wb_adr_i(adr[2:0]), 
-		.wb_dat_i(dat_o), 
-		.wb_dat_o(dat_i), 
-		.wb_we_i(we), 
-		.wb_stb_i(stb), 
-		.wb_cyc_i(cyc), 
-		.wb_ack_o(ack), 
+		.wb_clk_i(clk),
+		.wb_rst_i(1'b0),
+		.arst_i(rstn),
+		.wb_adr_i(adr[2:0]),
+		.wb_dat_i(dat_o),
+		.wb_dat_o(dat_i),
+		.wb_we_i(we),
+		.wb_stb_i(stb),
+		.wb_cyc_i(cyc),
+		.wb_ack_o(ack),
 		.wb_inta_o(inta),
 
 		// i2c signals
-		.scl_pad_i(scl), 
-		.scl_pad_o(scl_o), 
-		.scl_padoen_o(scl_oen), 
-		.sda_pad_i(sda), 
-		.sda_pad_o(sda_o), 
+		.scl_pad_i(scl),
+		.scl_pad_o(scl_o),
+		.scl_padoen_o(scl_oen),
+		.sda_pad_i(sda),
+		.sda_pad_o(sda_o),
 		.sda_padoen_o(sda_oen)
 	);
 
 	// hookup i2c slave model
-	i2c_slave_model #(7'b1010_000) i2c_slave (
+	i2c_slave_model #(SADR) i2c_slave (
 		.scl(scl),
 		.sda(sda)
 	);
 
 	// create i2c lines
-	assign scl = scl_oen ? 1'bz : scl_o; // create tri-state buffer for i2c_master scl line
-	assign sda = sda_oen ? 1'bz : sda_o; // create tri-state buffer for i2c_master sda line
+	always rscl = #600 scl_oen ? 1'bz : scl_o; // create tri-state buffer for i2c_master scl line
+	always rsda = #600 sda_oen ? 1'bz : sda_o; // create tri-state buffer for i2c_master sda line
 
+	assign scl = rscl;
+	assign sda = rsda;
+	
 	pullup p1(scl); // pullup scl line
 	pullup p2(sda); // pullup sda line
 
@@ -172,7 +184,7 @@ module tst_bench_top();
 	      rstn = 1'b1; // negate reset
 	      #2;
 	      rstn = 1'b0; // assert reset
-	      repeat(20) @(posedge clk);
+	      repeat(1) @(posedge clk);
 	      rstn = 1'b1; // negate reset
 
 	      $display("status: %t done reset", $time);
@@ -184,7 +196,7 @@ module tst_bench_top();
 	      //
 
 	      // program internal registers
-//	      u0.wb_write(1, PRER_LO, 8'hfa); // load prescaler lo-byte
+	      u0.wb_write(1, PRER_LO, 8'hfa); // load prescaler lo-byte
 	      u0.wb_write(1, PRER_LO, 8'hc8); // load prescaler lo-byte
 	      u0.wb_write(1, PRER_HI, 8'h00); // load prescaler hi-byte
 	      $display("status: %t programmed registers", $time);
@@ -201,9 +213,9 @@ module tst_bench_top();
 	      //
 
 	      // drive slave address
-	      u0.wb_write(1, TXR,     8'ha0); // present slave address, set write-bit (== !read)
-	      u0.wb_write(0, CR,      8'h90); // set command (start, write)
-	      $display("status: %t generate 'start', write cmd a0 (slave address+write)", $time);
+	      u0.wb_write(1, TXR, {SADR,WR} ); // present slave address, set write-bit
+	      u0.wb_write(0, CR,      8'h90 ); // set command (start, write)
+	      $display("status: %t generate 'start', write cmd %0h (slave address+write)", $time, {SADR,WR} );
 
 	      // check tip bit
 	      u0.wb_read(1, SR, q);
@@ -255,9 +267,9 @@ module tst_bench_top();
 	      //
 
 	      // drive slave address
-	      u0.wb_write(1, TXR,     8'ha0); // present slave address, set write-bit (== !read)
-	      u0.wb_write(0, CR,      8'h90); // set command (start, write)
-	      $display("status: %t generate 'start', write cmd a0 (slave address+write)", $time);
+	      u0.wb_write(1, TXR,{SADR,WR} ); // present slave address, set write-bit
+	      u0.wb_write(0, CR,     8'h90 ); // set command (start, write)
+	      $display("status: %t generate 'start', write cmd %0h (slave address+write)", $time, {SADR,WR} );
 
 	      // check tip bit
 	      u0.wb_read(1, SR, q);
@@ -277,9 +289,9 @@ module tst_bench_top();
 	      $display("status: %t tip==0", $time);
 
 	      // drive slave address
-	      u0.wb_write(1, TXR,     8'ha1); // present slave's address, set read-bit
-	      u0.wb_write(0, CR,      8'h90); // set command (start, write)
-	      $display("status: %t generate 'repeated start', write cmd a1 (slave address+read)", $time);
+	      u0.wb_write(1, TXR, {SADR,RD} ); // present slave's address, set read-bit
+	      u0.wb_write(0, CR,      8'h90 ); // set command (start, write)
+	      $display("status: %t generate 'repeated start', write cmd %0h (slave address+read)", $time, {SADR,RD} );
 
 	      // check tip bit
 	      u0.wb_read(1, SR, q);
@@ -301,6 +313,8 @@ module tst_bench_top();
 	      u0.wb_read(1, RXR, qq);
 	      if(qq !== 8'ha5)
 	        $display("\nERROR: Expected a5, received %x at time %t", qq, $time);
+	      else
+	        $display("status: %t received %x", $time, qq);
 
 	      // read data from slave
 	      u0.wb_write(1, CR,      8'h20); // set command (read, ack_read)
@@ -316,6 +330,8 @@ module tst_bench_top();
 	      u0.wb_read(1, RXR, qq);
 	      if(qq !== 8'h5a)
 	        $display("\nERROR: Expected 5a, received %x at time %t", qq, $time);
+	      else
+	        $display("status: %t received %x", $time, qq);
 
 	      // read data from slave
 	      u0.wb_write(1, CR,      8'h20); // set command (read, ack_read)
@@ -350,9 +366,9 @@ module tst_bench_top();
 	      //
 
 	      // drive slave address
-	      u0.wb_write(1, TXR,     8'ha0); // present slave address, set write-bit (== !read)
-	      u0.wb_write(0, CR,      8'h90); // set command (start, write)
-	      $display("status: %t generate 'start', write cmd a0 (slave address+write). Check invalid address", $time);
+	      u0.wb_write(1, TXR, {SADR,WR} ); // present slave address, set write-bit
+	      u0.wb_write(0, CR,      8'h90 ); // set command (start, write)
+	      $display("status: %t generate 'start', write cmd %0h (slave address+write). Check invalid address", $time, {SADR,WR} );
 
 	      // check tip bit
 	      u0.wb_read(1, SR, q);
@@ -386,11 +402,12 @@ module tst_bench_top();
 	      u0.wb_read(1, SR, q); // poll it until it is zero
 	      $display("status: %t tip==0", $time);
 
-	      #25000; // wait 25us
+	      #250000; // wait 250us
 	      $display("\n\nstatus: %t Testbench done", $time);
 	      $finish;
 	  end
 
 endmodule
+
 
 
