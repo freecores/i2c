@@ -37,16 +37,19 @@
 
 //  CVS Log
 //
-//  $Id: i2c_master_bit_ctrl.v,v 1.8 2003-02-05 00:06:10 rherveille Exp $
+//  $Id: i2c_master_bit_ctrl.v,v 1.9 2003-03-10 14:26:37 rherveille Exp $
 //
-//  $Date: 2003-02-05 00:06:10 $
-//  $Revision: 1.8 $
+//  $Date: 2003-03-10 14:26:37 $
+//  $Revision: 1.9 $
 //  $Author: rherveille $
 //  $Locker:  $
 //  $State: Exp $
 //
 // Change History:
 //               $Log: not supported by cvs2svn $
+//               Revision 1.8  2003/02/05 00:06:10  rherveille
+//               Fixed a bug where the core would trigger an erroneous 'arbitration lost' interrupt after being reset, when the reset pulse width < 3 clk cycles.
+//
 //               Revision 1.7  2002/12/26 16:05:12  rherveille
 //               Small code simplifications
 //
@@ -440,7 +443,7 @@ module i2c_master_bit_ctrl(
 	            stop_d:
 	            begin
 	                c_state <= #1 idle;
-	                cmd_ack <= #1 clk_en;
+	                cmd_ack <= #1 1'b1;
 	                scl_oen <= #1 1'b1; // keep SCL high
 	                sda_oen <= #1 1'b1; // set SDA high
 	                sda_chk <= #1 1'b0; // don't check SDA output
@@ -474,7 +477,7 @@ module i2c_master_bit_ctrl(
 	            rd_d:
 	            begin
 	                c_state <= #1 idle;
-	                cmd_ack <= #1 clk_en;
+	                cmd_ack <= #1 1'b1;
 	                scl_oen <= #1 1'b0; // set SCL low
 	                sda_oen <= #1 1'b1; // keep SDA tri-stated
 	                sda_chk <= #1 1'b0; // don't check SDA output
