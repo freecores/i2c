@@ -1,6 +1,6 @@
 /////////////////////////////////////////////////////////////////////
 ////                                                             ////
-////  WISHBONE rev.B2 compliant I2C Master controller Top-level  ////
+////  WISHBONE revB.2 compliant I2C Master controller Top-level  ////
 ////                                                             ////
 ////                                                             ////
 ////  Author: Richard Herveille                                  ////
@@ -37,18 +37,24 @@
 
 //  CVS Log
 //
-//  $Id: i2c_master_top.v,v 1.5 2001-11-10 10:52:55 rherveille Exp $
+//  $Id: i2c_master_top.v,v 1.6 2002-11-30 22:24:40 rherveille Exp $
 //
-//  $Date: 2001-11-10 10:52:55 $
-//  $Revision: 1.5 $
+//  $Date: 2002-11-30 22:24:40 $
+//  $Revision: 1.6 $
 //  $Author: rherveille $
 //  $Locker:  $
 //  $State: Exp $
 //
 // Change History:
 //               $Log: not supported by cvs2svn $
+//               Revision 1.5  2001/11/10 10:52:55  rherveille
+//               Changed PRER reset value from 0x0000 to 0xffff, conform specs.
+//
 
+// synopsys translate_off
 `include "timescale.v"
+// synopsys translate_on
+
 `include "i2c_master_defines.v"
 
 module i2c_master_top(
@@ -70,12 +76,14 @@ module i2c_master_top(
 	input  [2:0] wb_adr_i;     // lower address bits
 	input  [7:0] wb_dat_i;     // databus input
 	output [7:0] wb_dat_o;     // databus output
-	reg [7:0] wb_dat_o;
 	input        wb_we_i;      // write enable input
 	input        wb_stb_i;     // stobe/core select signal
 	input        wb_cyc_i;     // valid bus cycle input
 	output       wb_ack_o;     // bus cycle acknowledge output
 	output       wb_inta_o;    // interrupt request signal output
+
+	reg [7:0] wb_dat_o;
+	reg wb_ack_o;
 	reg wb_inta_o;
 
 	// I2C signals
@@ -83,6 +91,7 @@ module i2c_master_top(
 	input  scl_pad_i;       // SCL-line input
 	output scl_pad_o;       // SCL-line output (always 1'b0)
 	output scl_padoen_o;    // SCL-line output enable (active low)
+
 	// i2c data line
 	input  sda_pad_i;       // SDA-line input
 	output sda_pad_o;       // SDA-line output (always 1'b0)
@@ -121,64 +130,65 @@ module i2c_master_top(
 
 	// generate internal reset
 	wire rst_i = arst_i ^ ARST_LVL;
-	
+
 	// generate acknowledge output signal
-	assign wb_ack_o = wb_cyc_i && wb_stb_i; // because timing is always honored
+	always @(posedge wb_clk_i)
+	  wb_ack_o <= #1 wb_cyc_i & wb_stb_i & ~wb_ack_o; // because timing is always honored
 
 	// assign DAT_O
-	always@(wb_adr_i or prer or ctr or txr or cr or rxr or sr)
+	always @(posedge wb_clk_i)
 	begin
-		case (wb_adr_i) // synopsis full_case parallel_case
-			3'b000: wb_dat_o = prer[ 7:0];
-			3'b001: wb_dat_o = prer[15:8];
-			3'b010: wb_dat_o = ctr;
-			3'b011: wb_dat_o = rxr; // write is transmit register (txr)
-			3'b100: wb_dat_o = sr;  // write is command register (cr)
-			3'b101: wb_dat_o = txr;
-			3'b110: wb_dat_o = cr;
-			3'b111: wb_dat_o = 0;   // reserved
-		endcase
+	  case (wb_adr_i) // synopsis full_case parallel_case
+	    3'b000: wb_dat_o = prer[ 7:0];
+	    3'b001: wb_dat_o = prer[15:8];
+	    3'b010: wb_dat_o = ctr;
+	    3'b011: wb_dat_o = rxr; // write is transmit register (txr)
+	    3'b100: wb_dat_o = sr;  // write is command register (cr)
+	    3'b101: wb_dat_o = txr;
+	    3'b110: wb_dat_o = cr;
+	    3'b111: wb_dat_o = 0;   // reserved
+	  endcase
 	end
 
 
 	// generate registers
-	always@(posedge wb_clk_i or negedge rst_i)
-		if (!rst_i)
-			begin
-				prer <= #1 16'hffff;
-				ctr  <= #1  8'h0;
-				txr  <= #1  8'h0;
-				cr   <= #1  8'h0;
-			end
-		else if (wb_rst_i)
-			begin
-				prer <= #1 16'hffff;
-				ctr  <= #1  8'h0;
-				txr  <= #1  8'h0;
-				cr   <= #1  8'h0;
-			end
-		else
-			if (wb_cyc_i && wb_stb_i && wb_we_i)
-				begin
-					if (!wb_adr_i[2])
-						case (wb_adr_i[1:0]) // synopsis full_case parallel_case
-							2'b00 : prer [ 7:0] <= #1 wb_dat_i;
-							2'b01 : prer [15:8] <= #1 wb_dat_i;
-							2'b10 : ctr         <= #1 wb_dat_i;
-							2'b11 : txr         <= #1 wb_dat_i;
-						endcase
-					else
-						if (core_en && (wb_adr_i[1:0] == 2'b00) ) // only take new commands when i2c core enabled, pending commands are finished
-							cr <= #1 wb_dat_i;
-				end
-			else
-				begin
-					if (done)
-						cr[7:4] <= #1 4'h0; // clear command bits when done
+	always @(posedge wb_clk_i or negedge rst_i)
+	  if (!rst_i)
+	    begin
+	        prer <= #1 16'hffff;
+	        ctr  <= #1  8'h0;
+	        txr  <= #1  8'h0;
+	        cr   <= #1  8'h0;
+	    end
+	  else if (wb_rst_i)
+	    begin
+	        prer <= #1 16'hffff;
+	        ctr  <= #1  8'h0;
+	        txr  <= #1  8'h0;
+	        cr   <= #1  8'h0;
+	    end
+	  else
+	    if (wb_cyc_i && wb_stb_i && wb_we_i)
+	      begin
+	          if (!wb_adr_i[2])
+	            case (wb_adr_i[1:0]) // synopsis full_case parallel_case
+	              2'b00 : prer [ 7:0] <= #1 wb_dat_i;
+	              2'b01 : prer [15:8] <= #1 wb_dat_i;
+	              2'b10 : ctr         <= #1 wb_dat_i;
+	              2'b11 : txr         <= #1 wb_dat_i;
+	            endcase
+	          else
+	            if (core_en && (wb_adr_i[1:0] == 2'b00) ) // only take new commands when i2c core enabled, pending commands are finished
+	              cr <= #1 wb_dat_i;
+	      end
+	    else
+	      begin
+	          if (done)
+	            cr[7:4] <= #1 4'h0; // clear command bits when done
 
-					cr[2:1] <= #1 2'b00;  // reserved bits
-					cr[0]   <= #1 cr[0] && irq_flag; // clear when irq_flag cleared
-				end
+	          cr[2:1] <= #1 2'b00;  // reserved bits
+	          cr[0]   <= #1 cr[0] && irq_flag; // clear when irq_flag cleared
+	      end
 
 
 	// decode command register
@@ -195,75 +205,65 @@ module i2c_master_top(
 
 	// hookup byte controller block
 	i2c_master_byte_ctrl byte_controller (
-		.clk(wb_clk_i),
-		.rst(wb_rst_i),
-		.nReset(rst_i),
-		.ena(core_en),
-		.clk_cnt(prer),
-		.start(sta),
-		.stop(sto),
-		.read(rd),
-		.write(wr),
-		.ack_in(ack),
-		.din(txr),
-		.cmd_ack(done),
-		.ack_out(irxack),
-		.dout(rxr),
-		.i2c_busy(i2c_busy),
-		.scl_i(scl_pad_i),
-		.scl_o(scl_pad_o),
-		.scl_oen(scl_padoen_o),
-		.sda_i(sda_pad_i),
-		.sda_o(sda_pad_o),
-		.sda_oen(sda_padoen_o)
+		.clk      ( wb_clk_i     ),
+		.rst      ( wb_rst_i     ),
+		.nReset   ( rst_i        ),
+		.ena      ( core_en      ),
+		.clk_cnt  ( prer         ),
+		.start    ( sta          ),
+		.stop     ( sto          ),
+		.read     ( rd           ),
+		.write    ( wr           ),
+		.ack_in   ( ack          ),
+		.din      ( txr          ),
+		.cmd_ack  ( done         ),
+		.ack_out  ( irxack       ),
+		.dout     ( rxr          ),
+		.i2c_busy ( i2c_busy     ),
+		.scl_i    ( scl_pad_i    ),
+		.scl_o    ( scl_pad_o    ),
+		.scl_oen  ( scl_padoen_o ),
+		.sda_i    ( sda_pad_i    ),
+		.sda_o    ( sda_pad_o    ),
+		.sda_oen  ( sda_padoen_o )
 	);
 
 
 	// status register block + interrupt request signal
-	always@(posedge wb_clk_i or negedge rst_i)
-		if (!rst_i)
-			begin
-				rxack    <= #1 1'b0;
-				tip      <= #1 1'b0;
-				irq_flag <= #1 1'b0;
-			end
-		else if (wb_rst_i)
-			begin
-				rxack    <= #1 1'b0;
-				tip      <= #1 1'b0;
-				irq_flag <= #1 1'b0;
-			end
-		else
-			begin
-				rxack    <= #1 irxack;
-				tip      <= #1 (rd || wr);
-				irq_flag <= #1 (done || irq_flag) && !iack; // interrupt request flag is always generated
-			end
+	always @(posedge wb_clk_i or negedge rst_i)
+	  if (!rst_i)
+	    begin
+	        rxack    <= #1 1'b0;
+	        tip      <= #1 1'b0;
+	        irq_flag <= #1 1'b0;
+	    end
+	  else if (wb_rst_i)
+	    begin
+	        rxack    <= #1 1'b0;
+	        tip      <= #1 1'b0;
+	        irq_flag <= #1 1'b0;
+	    end
+	  else
+	    begin
+	        rxack    <= #1 irxack;
+	        tip      <= #1 (rd | wr);
+	        irq_flag <= #1 (done | irq_flag) & ~iack; // interrupt request flag is always generated
+	    end
 
-		// generate interrupt request signals
-		always@(posedge wb_clk_i or negedge rst_i)
-			if (!rst_i)
-				wb_inta_o <= #1 1'b0;
-			else if (wb_rst_i)
-				wb_inta_o <= #1 1'b0;
-			else
-				wb_inta_o <= #1 irq_flag && ien; // interrupt signal is only generated when IEN (interrupt enable bit is set)
+	// generate interrupt request signals
+	always @(posedge wb_clk_i or negedge rst_i)
+	  if (!rst_i)
+	    wb_inta_o <= #1 1'b0;
+	  else if (wb_rst_i)
+	    wb_inta_o <= #1 1'b0;
+	  else
+	    wb_inta_o <= #1 irq_flag && ien; // interrupt signal is only generated when IEN (interrupt enable bit is set)
 
-		// assign status register bits
-		assign sr[7]   = rxack;
-		assign sr[6]   = i2c_busy;
-		assign sr[5:2] = 4'h0; // reserved
-		assign sr[1]   = tip;
-		assign sr[0]   = irq_flag;
+	// assign status register bits
+	assign sr[7]   = rxack;
+	assign sr[6]   = i2c_busy;
+	assign sr[5:2] = 4'h0; // reserved
+	assign sr[1]   = tip;
+	assign sr[0]   = irq_flag;
 
 endmodule
-
-
-
-
-
-
-
-
-
-

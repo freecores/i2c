@@ -37,16 +37,21 @@
 
 --  CVS Log
 --
---  $Id: i2c_master_byte_ctrl.vhd,v 1.1 2001-11-05 12:02:33 rherveille Exp $
+--  $Id: i2c_master_byte_ctrl.vhd,v 1.2 2002-11-30 22:24:37 rherveille Exp $
 --
---  $Date: 2001-11-05 12:02:33 $
---  $Revision: 1.1 $
+--  $Date: 2002-11-30 22:24:37 $
+--  $Revision: 1.2 $
 --  $Author: rherveille $
 --  $Locker:  $
 --  $State: Exp $
 --
 -- Change History:
 --               $Log: not supported by cvs2svn $
+--               Revision 1.1  2001/11/05 12:02:33  rherveille
+--               Split i2c_master_core.vhd into separate files for each entity; same layout as verilog version.
+--               Code updated, is now up-to-date to doc. rev.0.4.
+--               Added headers.
+--
 
 
 
@@ -61,16 +66,13 @@ use ieee.std_logic_1164.all;
 use ieee.std_logic_arith.all;
 
 entity i2c_master_byte_ctrl is
-	generic(
-		Tcq : time := 1 ns
-	);
 	port (
 		clk    : in std_logic;
 		rst    : in std_logic; -- synchronous active high reset (WISHBONE compatible)
 		nReset : in std_logic;	-- asynchornous active low reset (FPGA compatible)
 		ena    : in std_logic; -- core enable signal
 
-		clk_cnt : in unsigned(15 downto 0);	-- 4x SCL 
+		clk_cnt : in unsigned(15 downto 0);	-- 4x SCL
 
 		-- input signals
 		start,
@@ -98,32 +100,29 @@ end entity i2c_master_byte_ctrl;
 
 architecture structural of i2c_master_byte_ctrl is
 	component i2c_master_bit_ctrl is
-		generic(
-			Tcq : time := Tcq
-		);
-		port (
-			clk    : in std_logic;
-			rst    : in std_logic;
-			nReset : in std_logic;
-			ena    : in std_logic;				-- core enable signal
+	port (
+		clk    : in std_logic;
+		rst    : in std_logic;
+		nReset : in std_logic;
+		ena    : in std_logic;				-- core enable signal
 
-			clk_cnt : in unsigned(15 downto 0);		-- clock prescale value
+		clk_cnt : in unsigned(15 downto 0);		-- clock prescale value
 
-			cmd     : in std_logic_vector(3 downto 0);
-			cmd_ack : out std_logic;
-			busy    : out std_logic;
+		cmd     : in std_logic_vector(3 downto 0);
+		cmd_ack : out std_logic;
+		busy    : out std_logic;
 
-			din  : in std_logic;
-			dout : out std_logic;
+		din  : in std_logic;
+		dout : out std_logic;
 
-			-- i2c lines
-			scl_i   : in std_logic;  -- i2c clock line input
-			scl_o   : out std_logic; -- i2c clock line output
-			scl_oen : out std_logic; -- i2c clock line output enable, active low
-			sda_i   : in std_logic;  -- i2c data line input
-			sda_o   : out std_logic; -- i2c data line output
-			sda_oen : out std_logic  -- i2c data line output enable, active low
-		);
+		-- i2c lines
+		scl_i   : in std_logic;  -- i2c clock line input
+		scl_o   : out std_logic; -- i2c clock line output
+		scl_oen : out std_logic; -- i2c clock line output enable, active low
+		sda_i   : in std_logic;  -- i2c data line input
+		sda_o   : out std_logic; -- i2c data line output
+		sda_oen : out std_logic  -- i2c data line output enable, active low
+	);
 	end component i2c_master_bit_ctrl;
 
 	-- commands for bit_controller block
@@ -169,7 +168,7 @@ begin
 
 	-- generate host-command-acknowledge
 	cmd_ack <= host_ack;
-	
+
 	-- generate go-signal
 	go <= (read or write or stop) and not host_ack;
 
@@ -179,33 +178,33 @@ begin
 	-- generate shift register
 	shift_register: process(clk, nReset)
 	begin
-		if (nReset = '0') then
-			sr <= (others => '0') after Tcq;
-		elsif (clk'event and clk = '1') then
-			if (rst = '1') then
-				sr <= (others => '0') after Tcq;
-			elsif (ld = '1') then
-				sr <= din after Tcq;
-			elsif (shift = '1') then
-				sr <= (sr(6 downto 0) & core_rxd) after Tcq;
-			end if;
-		end if;
+	    if (nReset = '0') then
+	      sr <= (others => '0');
+	    elsif (clk'event and clk = '1') then
+	      if (rst = '1') then
+	        sr <= (others => '0');
+	      elsif (ld = '1') then
+	        sr <= din;
+	      elsif (shift = '1') then
+	        sr <= (sr(6 downto 0) & core_rxd);
+	      end if;
+	    end if;
 	end process shift_register;
 
 	-- generate data-counter
 	data_cnt: process(clk, nReset)
 	begin
-		if (nReset = '0') then
-			dcnt <= (others => '0') after Tcq;
-		elsif (clk'event and clk = '1') then
-			if (rst = '1') then
-				dcnt <= (others => '0') after Tcq;
-			elsif (ld = '1') then
-				dcnt <= (others => '1') after Tcq; -- load counter with 7
-			elsif (shift = '1') then
-				dcnt <= dcnt -1 after Tcq;
-			end if;
-		end if;
+	    if (nReset = '0') then
+	      dcnt <= (others => '0');
+	    elsif (clk'event and clk = '1') then
+	      if (rst = '1') then
+	        dcnt <= (others => '0');
+	      elsif (ld = '1') then
+	        dcnt <= (others => '1');  -- load counter with 7
+	      elsif (shift = '1') then
+	        dcnt <= dcnt -1;
+	      end if;
+	    end if;
 	end process data_cnt;
 
 	cnt_done <= '1' when (dcnt = 0) else '0';
@@ -214,146 +213,136 @@ begin
 	-- state machine
 	--
 	statemachine : block
-		type states is (st_idle, st_start, st_read, st_write, st_ack, st_stop);
-		signal c_state : states;
+	    type states is (st_idle, st_start, st_read, st_write, st_ack, st_stop);
+	    signal c_state : states;
 	begin
-		--
-		-- command interpreter, translate complex commands into simpler I2C commands
-		--
-		nxt_state_decoder: process(clk, nReset)
-		begin
-			if (nReset = '0') then
-				core_cmd <= I2C_CMD_NOP after Tcq;
-				core_txd <= '0' after Tcq;
-				
-				shift    <= '0' after Tcq;
-				ld       <= '0' after Tcq;
+	    --
+	    -- command interpreter, translate complex commands into simpler I2C commands
+	    --
+	    nxt_state_decoder: process(clk, nReset)
+	    begin
+	        if (nReset = '0') then
+	          core_cmd <= I2C_CMD_NOP;
+	          core_txd <= '0';
+	          shift    <= '0';
+	          ld       <= '0';
+	          host_ack <= '0';
+	          c_state  <= st_idle;
+	          ack_out  <= '0';
+	        elsif (clk'event and clk = '1') then
+	          if (rst = '1') then
+	            core_cmd <= I2C_CMD_NOP;
+	            core_txd <= '0';
+	            shift    <= '0';
+	            ld       <= '0';
+	            host_ack <= '0';
+	            c_state  <= st_idle;
+	            ack_out  <= '0';
+	          else
+	            -- initialy reset all signal
+	            core_txd <= sr(7);
+	            shift    <= '0';
+	            ld       <= '0';
+	            host_ack <= '0';
 
-				host_ack <= '0' after Tcq;
-				c_state  <= st_idle after Tcq;
+	            case c_state is
+	              when st_idle =>
+	                 if (go = '1') then
+	                   if (start = '1') then
+	                     c_state  <= st_start;
+	                     core_cmd <= I2C_CMD_START;
+	                   elsif (read = '1') then
+	                     c_state  <= st_read;
+	                     core_cmd <= I2C_CMD_READ;
+	                   elsif (write = '1') then
+	                     c_state  <= st_write;
+	                     core_cmd <= I2C_CMD_WRITE;
+	                   else -- stop
+	                     c_state  <= st_stop;
+	                     core_cmd <= I2C_CMD_STOP;
+	                     host_ack <= '1'; -- generate acknowledge signal
+	                   end if;
 
-				ack_out  <= '0' after Tcq;
-			elsif (clk'event and clk = '1') then
-				if (rst = '1') then
-					core_cmd <= I2C_CMD_NOP after Tcq;
-					core_txd <= '0' after Tcq;
-				
-					shift    <= '0' after Tcq;
-					ld       <= '0' after Tcq;
+	                   ld <= '1';
+	                 end if;
 
-					host_ack <= '0' after Tcq;
-					c_state  <= st_idle after Tcq;
+	              when st_start =>
+	                 if (core_ack = '1') then
+	                   if (read = '1') then
+	                     c_state  <= st_read;
+	                     core_cmd <= I2C_CMD_READ;
+	                   else
+	                     c_state  <= st_write;
+	                     core_cmd <= I2C_CMD_WRITE;
+	                   end if;
 
-					ack_out  <= '0' after Tcq;
-				else
-					-- initialy reset all signal
-					core_txd <= sr(7) after Tcq;
+	                   ld <= '1';
+	                 end if;
 
-					shift    <= '0' after Tcq;
-					ld       <= '0' after Tcq;
+	              when st_write =>
+	                 if (core_ack = '1') then
+	                   if (cnt_done = '1') then
+	                     c_state  <= st_ack;
+	                     core_cmd <= I2C_CMD_READ;
+	                   else
+	                     c_state  <= st_write;       -- stay in same state
+	                     core_cmd <= I2C_CMD_WRITE;  -- write next bit
+	                     shift    <= '1';
+	                   end if;
+	                 end if;
 
-					host_ack <= '0' after Tcq;
+	              when st_read =>
+	                 if (core_ack = '1') then
+	                   if (cnt_done = '1') then
+	                     c_state  <= st_ack;
+	                     core_cmd <= I2C_CMD_WRITE;
+	                   else
+	                     c_state  <= st_read;      -- stay in same state
+	                     core_cmd <= I2C_CMD_READ; -- read next bit
+	                   end if;
 
-					case c_state is
-						when st_idle =>
-							if (go = '1') then
-								if (start = '1') then
-									c_state  <= st_start after Tcq;
-									core_cmd <= I2C_CMD_START after Tcq;
-								elsif (read = '1') then
-									c_state  <= st_read after Tcq;
-									core_cmd <= I2C_CMD_READ after Tcq;
-								elsif (write = '1') then
-									c_state  <= st_write after Tcq;
-									core_cmd <= I2C_CMD_WRITE after Tcq;
-								else -- stop
-									c_state  <= st_stop after Tcq;
-									core_cmd <= I2C_CMD_STOP after Tcq;
+	                   shift    <= '1';
+	                   core_txd <= ack_in;
+	                 end if;
 
-									host_ack <= '1' after Tcq; -- generate acknowledge signal
-								end if;
+	              when st_ack =>
+	                 if (core_ack = '1') then
+	                   -- check for stop; Should a STOP command be generated ?
+	                   if (stop = '1') then
+	                     c_state  <= st_stop;
+	                     core_cmd <= I2C_CMD_STOP;
+	                   else
+	                     c_state  <= st_idle;
+	                     core_cmd <= I2C_CMD_NOP;
+	                   end if;
 
-								ld <= '1' after Tcq;
-							end if;
+	                   -- assign ack_out output to core_rxd (contains last received bit)
+	                   ack_out  <= core_rxd;
 
-						when st_start =>
-							if (core_ack = '1') then
-								if (read = '1') then
-									c_state  <= st_read after Tcq;
-									core_cmd <= I2C_CMD_READ after Tcq;
-								else
-									c_state  <= st_write after Tcq;
-									core_cmd <= I2C_CMD_WRITE after Tcq;
-								end if;
+	                   -- generate command acknowledge signal
+	                   host_ack <= '1';
 
-								ld <= '1' after Tcq;
-							end if;
+	                   core_txd <= '1';
+	                 else
+	                   core_txd <= ack_in;
+	                 end if;
 
-						when st_write =>
-							if (core_ack = '1') then
-								if (cnt_done = '1') then
-									c_state  <= st_ack after Tcq;
-									core_cmd <= I2C_CMD_READ after Tcq;
-								else
-									c_state  <= st_write after Tcq;       -- stay in same state
-									core_cmd <= I2C_CMD_WRITE after Tcq;  -- write next bit
+	              when st_stop =>
+	                 if (core_ack = '1') then
+	                   c_state  <= st_idle;
+	                   core_cmd <= I2C_CMD_NOP;
+	                 end if;
 
-									shift    <= '1' after Tcq;
-								end if;
-							end if;			
+	              when others => -- illegal states
+	                 c_state  <= st_idle;
+	                 core_cmd <= I2C_CMD_NOP;
+	                 report ("Byte controller entered illegal state.");
 
-						when st_read =>
-							if (core_ack = '1') then
-								if (cnt_done = '1') then
-									c_state  <= st_ack after Tcq;
-									core_cmd <= I2C_CMD_WRITE after Tcq;
-								else
-									c_state  <= st_read after Tcq;      -- stay in same state
-									core_cmd <= I2C_CMD_READ after Tcq; -- read next bit
-								end if;
+	            end case;
 
-								shift    <= '1' after Tcq;
-								core_txd <= ack_in after Tcq;
-							end if;			
-
-						when st_ack =>
-							if (core_ack = '1') then
-								-- check for stop; Should a STOP command be generated ?
-								if (stop = '1') then
-									c_state  <= st_stop after Tcq;
-									core_cmd <= I2C_CMD_STOP after Tcq;
-								else
-									c_state  <= st_idle after Tcq;
-									core_cmd <= I2C_CMD_NOP after Tcq;
-								end if;
-
-								-- assign ack_out output to core_rxd (contains last received bit)
-								ack_out  <= core_rxd after Tcq;
-
-								-- generate command acknowledge signal
-								host_ack <= '1' after Tcq;
-
-								core_txd <= '1' after Tcq;
-							else
-								core_txd <= ack_in after Tcq;
-							end if;
-
-						when st_stop =>
-							if (core_ack = '1') then
-								c_state  <= st_idle after Tcq;
-								core_cmd <= I2C_CMD_NOP after Tcq;
-							end if;
-
-						when others => -- illegal states
-							c_state  <= st_idle after Tcq;
-							core_cmd <= I2C_CMD_NOP after Tcq;
-							report ("Byte controller entered illegal state.");
-
-					end case;
-
-				end if;
-			end if;
-		end process nxt_state_decoder;
+	          end if;
+	        end if;
+	    end process nxt_state_decoder;
 
 	end block statemachine;
 

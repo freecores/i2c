@@ -37,16 +37,19 @@
 
 //  CVS Log
 //
-//  $Id: i2c_master_bit_ctrl.v,v 1.4 2002-10-30 18:10:07 rherveille Exp $
+//  $Id: i2c_master_bit_ctrl.v,v 1.5 2002-11-30 22:24:40 rherveille Exp $
 //
-//  $Date: 2002-10-30 18:10:07 $
-//  $Revision: 1.4 $
+//  $Date: 2002-11-30 22:24:40 $
+//  $Revision: 1.5 $
 //  $Author: rherveille $
 //  $Locker:  $
 //  $State: Exp $
 //
 // Change History:
 //               $Log: not supported by cvs2svn $
+//               Revision 1.4  2002/10/30 18:10:07  rherveille
+//               Fixed some reported minor start/stop generation timing issuess.
+//
 //               Revision 1.3  2002/06/15 07:37:03  rherveille
 //               Fixed a small timing bug in the bit controller.\nAdded verilog simulation environment.
 //
@@ -197,8 +200,8 @@ module i2c_master_bit_ctrl(clk, rst, nReset, clk_cnt, ena, cmd, cmd_ack, busy, d
 	  begin
 	      dSDA <= #1 sSDA; // generate a delayed version of sSDA
 
-	      sta_condition <= #1 !sSDA &&  dSDA && sSCL;
-	      sto_condition <= #1  sSDA && !dSDA && sSCL;
+	      sta_condition <= #1 ~sSDA &  dSDA & sSCL;
+	      sto_condition <= #1  sSDA & ~dSDA & sSCL;
 	  end
 
 	// generate bus busy signal
@@ -208,7 +211,7 @@ module i2c_master_bit_ctrl(clk, rst, nReset, clk_cnt, ena, cmd, cmd_ack, busy, d
 	  else if (rst)
 	    busy <= #1 1'b0;
 	  else
-	    busy <= #1 (sta_condition || busy) && !sto_condition;
+	    busy <= #1 (sta_condition | busy) & ~sto_condition;
 
 
 	// generate statemachine
@@ -233,272 +236,189 @@ module i2c_master_bit_ctrl(clk, rst, nReset, clk_cnt, ena, cmd, cmd_ack, busy, d
 	parameter [16:0] wr_c    = 17'b0_1000_0000_0000_0000;
 	parameter [16:0] wr_d    = 17'b1_0000_0000_0000_0000;
 
-	reg [16:0] c_state, nxt_state; // synopsis enum_state
-	reg icmd_ack, store_sda;
+	reg [16:0] c_state; // synopsis enum_state
 
-	always @(c_state or cmd)
-	  begin
-	      nxt_state  = c_state;
-	      icmd_ack   = 1'b0; // default no command acknowledge
-	      store_sda  = 1'b0;
-
-	      case (c_state) // synopsis full_case parallel_case
-	        // idle state
-	        idle:
-	          case (cmd) // synopsis full_case parallel_case
-	            `I2C_CMD_START:
-	               nxt_state = start_a;
-
-	            `I2C_CMD_STOP:
-	               nxt_state = stop_a;
-
-	            `I2C_CMD_WRITE:
-	               nxt_state = wr_a;
-
-	            `I2C_CMD_READ:
-	               nxt_state = rd_a;
-
-	            default:
-	              nxt_state = idle;
-
-	          endcase
-
-	        // start
-	        start_a:
-	          nxt_state = start_b;
-
-	        start_b:
-	          nxt_state = start_c;
-
-	        start_c:
-	          nxt_state = start_d;
-
-	        start_d:
-	          nxt_state = start_e;
-
-	        start_e:
-	          begin
-	              nxt_state = idle;
-	              icmd_ack  = 1'b1;
-	          end
-
-	        // stop
-	        stop_a:
-	          nxt_state = stop_b;
-
-	        stop_b:
-	          nxt_state = stop_c;
-
-	        stop_c:
-	          nxt_state = stop_d;
-
-	        stop_d:
-	          begin
-	              nxt_state = idle;
-	              icmd_ack  = 1'b1;
-	          end
-
-	        // read
-	        rd_a:
-	          nxt_state = rd_b;
-
-	        rd_b:
-	          nxt_state = rd_c;
-
-	        rd_c:
-	          begin
-	              nxt_state = rd_d;
-	              store_sda = 1'b1;
-	          end
-
-	        rd_d:
-	          begin
-	              nxt_state = idle;
-	              icmd_ack  = 1'b1;
-	          end
-
-	        // write
-	        wr_a:
-	          nxt_state = wr_b;
-
-	        wr_b:
-	          nxt_state = wr_c;
-
-	        wr_c:
-	          nxt_state = wr_d;
-
-	        wr_d:
-	          begin
-	              nxt_state = idle;
-	              icmd_ack  = 1'b1;
-	          end
-
-	      endcase
-	  end
-
-
-	// generate registers
 	always @(posedge clk or negedge nReset)
 	  if (!nReset)
 	    begin
 	        c_state <= #1 idle;
 	        cmd_ack <= #1 1'b0;
 	        dout    <= #1 1'b0;
+	        scl_oen <= #1 1'b1;
+	        sda_oen <= #1 1'b1;
 	    end
 	  else if (rst)
 	    begin
 	        c_state <= #1 idle;
 	        cmd_ack <= #1 1'b0;
 	        dout    <= #1 1'b0;
+	        scl_oen <= #1 1'b1;
+	        sda_oen <= #1 1'b1;
 	    end
 	  else
 	    begin
-	        if (clk_en)
-	          begin
-	              c_state <= #1 nxt_state;
-	              if (store_sda)
-	                dout <= #1 sSDA;
-	          end
+	        cmd_ack   <= #1 1'b0; // default no command acknowledge + assert cmd_ack only 1clk cycle
 
-	          cmd_ack <= #1 icmd_ack && clk_en;
+	        if (clk_en)
+	          case (c_state) // synopsis full_case parallel_case
+	            // idle state
+	            idle:
+	            begin
+	                case (cmd) // synopsis full_case parallel_case
+	                  `I2C_CMD_START:
+	                     c_state <= #1 start_a;
+
+	                  `I2C_CMD_STOP:
+	                     c_state <= #1 stop_a;
+
+	                  `I2C_CMD_WRITE:
+	                     c_state <= #1 wr_a;
+
+	                  `I2C_CMD_READ:
+	                     c_state <= #1 rd_a;
+
+	                  default:
+	                    c_state <= #1 idle;
+	                endcase
+
+	                scl_oen <= #1 scl_oen; // keep SCL in same state
+	                sda_oen <= #1 sda_oen; // keep SDA in same state
+	            end
+
+	            // start
+	            start_a:
+	            begin
+	                c_state <= #1 start_b;
+	                scl_oen <= #1 scl_oen; // keep SCL in same state
+	                sda_oen <= #1 1'b1;    // set SDA high
+	            end
+
+	            start_b:
+	            begin
+	                c_state <= #1 start_c;
+	                scl_oen <= #1 1'b1; // set SCL high
+	                sda_oen <= #1 1'b1; // keep SDA high
+	            end
+
+	            start_c:
+	            begin
+	                c_state <= #1 start_d;
+	                scl_oen <= #1 1'b1; // keep SCL high
+	                sda_oen <= #1 1'b0; // set SDA low
+	            end
+
+	            start_d:
+	            begin
+	                c_state <= #1 start_e;
+	                scl_oen <= #1 1'b1; // keep SCL high
+	                sda_oen <= #1 1'b0; // keep SDA low
+	            end
+
+	            start_e:
+	            begin
+	                c_state <= #1 idle;
+	                cmd_ack <= #1 1'b1;
+	                scl_oen <= #1 1'b0; // set SCL low
+	                sda_oen <= #1 1'b0; // keep SDA low
+	            end
+
+	            // stop
+	            stop_a:
+	            begin
+	                c_state <= #1 stop_b;
+	                scl_oen <= #1 1'b0; // keep SCL low
+	                sda_oen <= #1 1'b0; // set SDA low
+	            end
+
+	            stop_b:
+	            begin
+	                c_state <= #1 stop_c;
+	                scl_oen <= #1 1'b1; // set SCL high
+	                sda_oen <= #1 1'b0; // keep SDA low
+	            end
+
+	            stop_c:
+	            begin
+	                c_state <= #1 stop_d;
+	                scl_oen <= #1 1'b1; // keep SCL high
+	                sda_oen <= #1 1'b0; // keep SDA low
+	            end
+
+	            stop_d:
+	            begin
+	                c_state <= #1 idle;
+	                cmd_ack <= #1 clk_en;
+	                scl_oen <= #1 1'b1; // keep SCL high
+	                sda_oen <= #1 1'b1; // set SDA high
+	            end
+
+	            // read
+	            rd_a:
+	            begin
+	                c_state <= #1 rd_b;
+	                scl_oen <= #1 1'b0; // keep SCL low
+	                sda_oen <= #1 1'b1; // tri-state SDA
+	            end
+
+	            rd_b:
+	            begin
+	                c_state <= #1 rd_c;
+	                scl_oen <= #1 1'b1; // set SCL high
+	                sda_oen <= #1 1'b1; // keep SDA tri-stated
+	            end
+
+	            rd_c:
+	            begin
+	                c_state <= #1 rd_d;
+	                dout <= #1 sSDA;
+	                scl_oen <= #1 1'b1; // keep SCL high
+	                sda_oen <= #1 1'b1;
+	            end
+
+	            rd_d:
+	            begin
+	                c_state <= #1 idle;
+	                cmd_ack <= #1 clk_en;
+	                scl_oen <= #1 1'b0; // set SCL low
+	                sda_oen <= #1 1'b1;
+	            end
+
+	            // write
+	            wr_a:
+	            begin
+	                c_state <= #1 wr_b;
+	                scl_oen <= #1 1'b0; // keep SCL low
+	                sda_oen <= #1 din;  // set SDA
+	            end
+
+	            wr_b:
+	            begin
+	                c_state <= #1 wr_c;
+	                scl_oen <= #1 1'b1; // set SCL high
+	                sda_oen <= #1 din;  // keep SDA
+	            end
+
+	            wr_c:
+	            begin
+	                c_state <= #1 wr_d;
+	                scl_oen <= #1 1'b1; // keep SCL high
+	                sda_oen <= #1 din;
+	            end
+
+	            wr_d:
+	            begin
+	                c_state <= #1 idle;
+	                cmd_ack <= #1 1'b1;
+	                scl_oen <= #1 1'b0; // set SCL low
+	                sda_oen <= #1 din;
+	            end
+
+	          endcase
 	    end
 
-	//
-	// convert states to SCL and SDA signals
-	//
 
 	// assign scl and sda output (always gnd)
 	assign scl_o = 1'b0;
 	assign sda_o = 1'b0;
-
-	// assign scl and sda output_enables
-	always @(posedge clk or negedge nReset)
-	  if (!nReset)
-	    begin
-	        scl_oen <= #1 1'b1;
-	        sda_oen <= #1 1'b1;
-	    end
-	  else if (rst)
-	    begin
-	        scl_oen <= #1 1'b1;
-	        sda_oen <= #1 1'b1;
-	    end
-	  else if (clk_en)
-	    case (c_state) // synopsis full_case parallel_case
-
-	      // idle state
-	      idle:
-	        begin
-	            scl_oen <= #1 scl_oen; // keep SCL in same state
-	            sda_oen <= #1 sda_oen; // keep SDA in same state
-	        end
-
-	      // start
-	      start_a:
-	        begin
-	            scl_oen <= #1 scl_oen; // keep SCL in same state
-	            sda_oen <= #1 1'b1;    // set SDA high
-	        end
-
-	      start_b:
-	        begin
-	            scl_oen <= #1 1'b1; // set SCL high
-	            sda_oen <= #1 1'b1; // keep SDA high
-	        end
-
-	      start_c:
-	        begin
-	            scl_oen <= #1 1'b1; // keep SCL high
-	            sda_oen <= #1 1'b0; // set SDA low
-	        end
-
-	      start_d:
-	        begin
-	            scl_oen <= #1 1'b1; // keep SCL high
-	            sda_oen <= #1 1'b0; // keep SDA low
-	        end
-
-	      start_e:
-	        begin
-	            scl_oen <= #1 1'b0; // set SCL low
-	            sda_oen <= #1 1'b0; // keep SDA low
-	        end
-
-	      // stop
-	      stop_a:
-	        begin
-	            scl_oen <= #1 1'b0; // keep SCL low
-	            sda_oen <= #1 1'b0; // set SDA low
-	        end
-
-	      stop_b:
-	        begin
-	            scl_oen <= #1 1'b1; // set SCL high
-	            sda_oen <= #1 1'b0; // keep SDA low
-	        end
-
-	      stop_c:
-	        begin
-	            scl_oen <= #1 1'b1; // keep SCL high
-	            sda_oen <= #1 1'b0; // keep SDA low
-	        end
-
-	      stop_d:
-	        begin
-	            scl_oen <= #1 1'b1; // keep SCL high
-	            sda_oen <= #1 1'b1; // set SDA high
-	        end
-
-	      //write
-	      wr_a:
-	        begin
-	            scl_oen <= #1 1'b0; // keep SCL low
-	            sda_oen <= #1 din;  // set SDA
-	        end
-
-	      wr_b:
-	        begin
-	            scl_oen <= #1 1'b1; // set SCL high
-	            sda_oen <= #1 din;  // keep SDA
-	        end
-
-	      wr_c:
-	        begin
-	            scl_oen <= #1 1'b1; // keep SCL high
-	            sda_oen <= #1 din;
-	        end
-
-	      wr_d:
-	        begin
-	            scl_oen <= #1 1'b0; // set SCL low
-	            sda_oen <= #1 din;
-	        end
-
-	      // read
-	      rd_a:
-	        begin
-	            scl_oen <= #1 1'b0; // keep SCL low
-	            sda_oen <= #1 1'b1; // tri-state SDA
-	        end
-
-	      rd_b:
-	        begin
-	            scl_oen <= #1 1'b1; // set SCL high
-	            sda_oen <= #1 1'b1; // keep SDA tri-stated
-	        end
-
-	      rd_c:
-	        begin
-	            scl_oen <= #1 1'b1; // keep SCL high
-	            sda_oen <= #1 1'b1;
-	        end
-
-	      rd_d:
-	        begin
-	            scl_oen <= #1 1'b0; // set SCL low
-	            sda_oen <= #1 1'b1;
-	        end
-
-	endcase
 
 endmodule
