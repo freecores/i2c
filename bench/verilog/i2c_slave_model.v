@@ -36,16 +36,19 @@
 
 //  CVS Log
 //
-//  $Id: i2c_slave_model.v,v 1.4 2003-09-11 08:25:37 rherveille Exp $
+//  $Id: i2c_slave_model.v,v 1.5 2003-12-05 11:05:19 rherveille Exp $
 //
-//  $Date: 2003-09-11 08:25:37 $
-//  $Revision: 1.4 $
+//  $Date: 2003-12-05 11:05:19 $
+//  $Revision: 1.5 $
 //  $Author: rherveille $
 //  $Locker:  $
 //  $State: Exp $
 //
 // Change History:
 //               $Log: not supported by cvs2svn $
+//               Revision 1.4  2003/09/11 08:25:37  rherveille
+//               Fixed a bug in the timing section. Changed 'tst_scl' into 'tst_sto'.
+//
 //               Revision 1.3  2002/10/30 18:11:06  rherveille
 //               Added timing tests to i2c_model.
 //               Updated testbench.
@@ -147,7 +150,9 @@ module i2c_slave_model (scl, sda);
 	always @(negedge sda)
 	  if(scl)
 	    begin
-	        sta <= #1 1'b1;
+	        sta   <= #1 1'b1;
+		d_sta <= #1 1'b0;
+		sto   <= #1 1'b0;
 
 	        if(debug)
 	          $display("DEBUG i2c_slave; start condition detected at %t", $time);
@@ -162,6 +167,7 @@ module i2c_slave_model (scl, sda);
 	always @(posedge sda)
 	  if(scl)
 	    begin
+	       sta <= #1 1'b0;
 	       sto <= #1 1'b1;
 
 	       if(debug)
