@@ -63,6 +63,7 @@ module i2c_master_top(
 
 	// core enable signal
 	wire core_en;
+	wire ien;
 
 	// status register signals
 	wire irxack;
@@ -146,6 +147,7 @@ module i2c_master_top(
 
 	// decode control register
 	assign core_en = ctr[7];
+	assign ien = ctr[6];
 
 	// hookup byte controller block
 	i2c_master_byte_ctrl byte_controller (
@@ -201,7 +203,7 @@ module i2c_master_top(
 			else if (wb_rst_i)
 				wb_inta_o <= #1 1'b0;
 			else
-				wb_inta_o <= #1 irq_flag && ctr[6]; // interrupt signal is only generated when IEN (interrupt enable bit is set)
+				wb_inta_o <= #1 irq_flag && ien; // interrupt signal is only generated when IEN (interrupt enable bit is set)
 
 		// assign status register bits
 		assign sr[7]   = rxack;
