@@ -1,6 +1,51 @@
+/////////////////////////////////////////////////////////////////////
+////                                                             ////
+////  WISHBONE rev.B2 compliant synthesizable I2C Slave model    ////
+////                                                             ////
+////                                                             ////
+////  Authors: Richard Herveille (richard@asics.ws) www.asics.ws ////
+////           John Sheahan (jrsheahan@optushome.com.au)         ////
+////                                                             ////
+////  Downloaded from: http://www.opencores.org/projects/i2c/    ////
+////                                                             ////
+/////////////////////////////////////////////////////////////////////
+////                                                             ////
+//// Copyright (C) 2001,2002 Richard Herveille                   ////
+////                         richard@asics.ws                    ////
+////                                                             ////
+//// This source file may be used and distributed without        ////
+//// restriction provided that this copyright statement is not   ////
+//// removed from the file and that any derivative work contains ////
+//// the original copyright notice and the associated disclaimer.////
+////                                                             ////
+////     THIS SOFTWARE IS PROVIDED ``AS IS'' AND WITHOUT ANY     ////
+//// EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED   ////
+//// TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS   ////
+//// FOR A PARTICULAR PURPOSE. IN NO EVENT SHALL THE AUTHOR      ////
+//// OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,         ////
+//// INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES    ////
+//// (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE   ////
+//// GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR        ////
+//// BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF  ////
+//// LIABILITY, WHETHER IN  CONTRACT, STRICT LIABILITY, OR TORT  ////
+//// (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT  ////
+//// OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE         ////
+//// POSSIBILITY OF SUCH DAMAGE.                                 ////
+////                                                             ////
+/////////////////////////////////////////////////////////////////////
+
+//  CVS Log
 //
-// I2C slave model
+//  $Id: i2c_slave_model.v,v 1.2 2002-03-17 10:26:38 rherveille Exp $
 //
+//  $Date: 2002-03-17 10:26:38 $
+//  $Revision: 1.2 $
+//  $Author: rherveille $
+//  $Locker:  $
+//  $State: Exp $
+//
+// Change History:
+//               $Log: not supported by cvs2svn $
 
 `include "timescale.v"
 
@@ -20,6 +65,8 @@ module i2c_slave_model (scl, sda);
 	//
 	// Variable declaration
 	//
+	wire debug = 1'b1;
+
 	reg [7:0] mem [3:0]; // initiate memory
 	reg [7:0] mem_adr;   // memory address
 	reg [7:0] mem_do;    // memory data output
@@ -64,6 +111,8 @@ module i2c_slave_model (scl, sda);
 
 	//detect my_address
 	assign my_adr = (sr[7:1] == I2C_ADR);
+	// FIXME: This should not be a generic assign, but rather 
+	// qualified on address transfer phase and probably reset by stop
 
 	//generate bit-counter
 	always@(posedge scl)
@@ -78,7 +127,12 @@ module i2c_slave_model (scl, sda);
 	//detect start condition
 	always@(negedge sda)
 		if (scl)
+		begin
 			sta <= #1 1'b1;
+
+			if (debug)
+				$display("DEBUG i2c_slave; start condition detected at %t", $time);
+		end
 		else
 			sta <= #1 1'b0;
 
@@ -88,7 +142,12 @@ module i2c_slave_model (scl, sda);
 	// detect stop condition
 	always@(posedge sda)
 		if (scl)
+		begin
 			sto <= #1 1'b1;
+
+			if (debug)
+				$display("DEBUG i2c_slave; stop condition detected at %t", $time);
+		end
 		else
 			sto <= #1 1'b0;
 
@@ -113,20 +172,37 @@ module i2c_slave_model (scl, sda);
 				case (state) // synopsys full_case parallel_case
 					idle: // idle state
 						if (acc_done && my_adr)
-								begin
-									state <= #1 slave_ack;
-									rw <= #1 sr[0];
+						begin
+							state <= #1 slave_ack;
+							rw <= #1 sr[0];
 
-									sda_o <= #1 1'b0; // generate i2c_ack
+							sda_o <= #1 1'b0; // generate i2c_ack
+
+							#2;
+							if (debug && rw)
+								$display("DEBUG i2c_slave; command byte received (read) at %t", $time);
+							if (debug && !rw)
+								$display("DEBUG i2c_slave; command byte received (write) at %t", $time);
+
+							if (rw)
+							begin
+								mem_do <= #1 mem[mem_adr];
+
+								if (debug)
+								begin
+									#2 $display("DEBUG i2c_slave; data block read %x from address %x (1)", mem_do, mem_adr);
+									#2 $display("DEBUG i2c_slave; memcheck [0]=%x, [1]=%x, [2]=%x", mem[4'h0], mem[4'h1], mem[4'h2]);
 								end
+							end
+						end
 
 					slave_ack:
 						begin
 							if (rw)
-								begin
-									state <= #1 data;
-									sda_o <= #1 mem_do[7];
-								end
+							begin
+								state <= #1 data;
+								sda_o <= #1 mem_do[7];
+							end
 							else
 								state <= #1 get_mem_adr;
 
@@ -135,12 +211,15 @@ module i2c_slave_model (scl, sda);
 
 					get_mem_adr: // wait for memory address
 						if (acc_done)
-							begin
-								state <= #1 gma_ack;
-								mem_adr <= #1 sr; // store memory address
+						begin
+							state <= #1 gma_ack;
+							mem_adr <= #1 sr; // store memory address
 
-								sda_o <= #1 !(sr <= 15); // generate i2c_ack, for valid address
-							end
+							sda_o <= #1 !(sr <= 15); // generate i2c_ack, for valid address
+
+							if (debug)
+								#1 $display("DEBUG i2c_slave; address received. adr=%x, ack=%b", sr, sda_o);
+						end
 
 					gma_ack:
 						begin
@@ -154,16 +233,29 @@ module i2c_slave_model (scl, sda);
 								sda_o <= #1 mem_do[7];
 
 							if (acc_done)
+							begin
+								state <= #1 data_ack;
+
+								mem_adr <= #2 mem_adr + 8'h1;
+
+								if (rw)
 								begin
-									state <= #1 data_ack;
+									#3 mem_do <= mem[mem_adr];
 
-									mem_adr <= #1 mem_adr + 8'h1;
-
-									if (!rw)
-										mem[ mem_adr[3:0] ] <= #1 sr; // store data in memory
-		
-									sda_o <= #1 (rw && (mem_adr <= 15) ); // send ack on write, receive ack on read
+									if (debug)
+										#5 $display("DEBUG i2c_slave; data block read %x from address %x (2)", mem_do, mem_adr);
 								end
+
+								if (!rw)
+								begin
+									mem[ mem_adr[3:0] ] <= #1 sr; // store data in memory
+
+									if (debug)
+										#2 $display("DEBUG i2c_slave; data block write %x to address %x", sr, mem_adr);
+								end
+
+								sda_o <= #1 (rw && (mem_adr <= 15) ); // send ack on write, receive ack on read
+							end
 						end
 
 					data_ack:
@@ -193,17 +285,12 @@ module i2c_slave_model (scl, sda);
 
 	// read data from memory
 	always@(posedge scl)
-		if (acc_done)
-			mem_do <= #1 mem[mem_adr];
-		else
+		if (!acc_done && rw)
 			mem_do <= #1 {mem_do[6:0], 1'b1}; // insert 1'b1 for host ack generation
 
 	// generate tri-states
 	assign sda = sda_o ? 1'bz : 1'b0;
 	
 endmodule
-
-
-
 
 
