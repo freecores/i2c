@@ -36,16 +36,19 @@
 
 //  CVS Log
 //
-//  $Id: i2c_slave_model.v,v 1.5 2003-12-05 11:05:19 rherveille Exp $
+//  $Id: i2c_slave_model.v,v 1.6 2005-02-28 11:33:48 rherveille Exp $
 //
-//  $Date: 2003-12-05 11:05:19 $
-//  $Revision: 1.5 $
+//  $Date: 2005-02-28 11:33:48 $
+//  $Revision: 1.6 $
 //  $Author: rherveille $
 //  $Locker:  $
 //  $State: Exp $
 //
 // Change History:
 //               $Log: not supported by cvs2svn $
+//               Revision 1.5  2003/12/05 11:05:19  rherveille
+//               Fixed slave address MSB='1' bug
+//
 //               Revision 1.4  2003/09/11 08:25:37  rherveille
 //               Fixed a bug in the timing section. Changed 'tst_scl' into 'tst_sto'.
 //
@@ -324,22 +327,25 @@ module i2c_slave_model (scl, sda);
 	  specparam normal_scl_low  = 4700,
 	            normal_scl_high = 4000,
 	            normal_tsu_sta  = 4700,
+	            normal_thd_sta  = 4000,
 	            normal_tsu_sto  = 4000,
-	            normal_sta_sto  = 4700,
+	            normal_tbuf     = 4700,
 
 	            fast_scl_low  = 1300,
 	            fast_scl_high =  600,
 	            fast_tsu_sta  = 1300,
+	            fast_thd_sta  =  600,
 	            fast_tsu_sto  =  600,
-	            fast_sta_sto  = 1300;
+	            fast_tbuf     = 1300;
 
-	  $width(negedge scl, normal_scl_low);  // scl high time
-	  $width(posedge scl, normal_scl_high); // scl low time
+	  $width(negedge scl, normal_scl_low);  // scl low time
+	  $width(posedge scl, normal_scl_high); // scl high time
 
-	  $setup(negedge sda &&& scl, negedge scl, normal_tsu_sta); // start condition
-	  $setup(posedge scl, posedge sda &&& scl, normal_tsu_sto); // stop condition
+	  $setup(posedge scl, negedge sda &&& scl, normal_tsu_sta); // setup start
+	  $setup(negedge sda &&& scl, negedge scl, normal_thd_sta); // hold start
+	  $setup(posedge scl, posedge sda &&& scl, normal_tsu_sto); // setup stop
 
-	  $setup(posedge tst_sta, posedge tst_sto, normal_sta_sto); // stop to start time
+	  $setup(posedge tst_sta, posedge tst_sto, normal_tbuf); // stop to start time
 	endspecify
 
 endmodule
