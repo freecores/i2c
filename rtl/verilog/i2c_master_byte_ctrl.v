@@ -37,16 +37,19 @@
 
 //  CVS Log
 //
-//  $Id: i2c_master_byte_ctrl.v,v 1.5 2002-12-26 15:02:32 rherveille Exp $
+//  $Id: i2c_master_byte_ctrl.v,v 1.6 2003-08-09 07:01:33 rherveille Exp $
 //
-//  $Date: 2002-12-26 15:02:32 $
-//  $Revision: 1.5 $
+//  $Date: 2003-08-09 07:01:33 $
+//  $Revision: 1.6 $
 //  $Author: rherveille $
 //  $Locker:  $
 //  $State: Exp $
 //
 // Change History:
 //               $Log: not supported by cvs2svn $
+//               Revision 1.5  2002/12/26 15:02:32  rherveille
+//               Core is now a Multimaster I2C controller
+//
 //               Revision 1.4  2002/11/30 22:24:40  rherveille
 //               Cleaned up code
 //
@@ -309,13 +312,16 @@ module i2c_master_byte_ctrl (
 	                 begin
 	                     c_state  <= #1 ST_IDLE;
 	                     core_cmd <= #1 `I2C_CMD_NOP;
+
+	                     // generate command acknowledge signal
+	                     cmd_ack  <= #1 1'b1;
 	                 end
 
 	                 // assign ack_out output to bit_controller_rxd (contains last received bit)
 	                 ack_out <= #1 core_rxd;
 
-	                 // generate command acknowledge signal
-	                 cmd_ack  <= #1 1'b1;
+//	                 // generate command acknowledge signal
+//	                 cmd_ack  <= #1 1'b1;
 
 	                 core_txd <= #1 1'b1;
 	             end
@@ -327,6 +333,9 @@ module i2c_master_byte_ctrl (
 	            begin
 	                c_state  <= #1 ST_IDLE;
 	                core_cmd <= #1 `I2C_CMD_NOP;
+
+	                // generate command acknowledge signal
+	                cmd_ack  <= #1 1'b1;
 	            end
 
 	      endcase

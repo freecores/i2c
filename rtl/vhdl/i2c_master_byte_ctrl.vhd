@@ -37,16 +37,19 @@
 
 --  CVS Log
 --
---  $Id: i2c_master_byte_ctrl.vhd,v 1.3 2002-12-26 16:05:47 rherveille Exp $
+--  $Id: i2c_master_byte_ctrl.vhd,v 1.4 2003-08-09 07:01:13 rherveille Exp $
 --
---  $Date: 2002-12-26 16:05:47 $
---  $Revision: 1.3 $
+--  $Date: 2003-08-09 07:01:13 $
+--  $Revision: 1.4 $
 --  $Author: rherveille $
 --  $Locker:  $
 --  $State: Exp $
 --
 -- Change History:
 --               $Log: not supported by cvs2svn $
+--               Revision 1.3  2002/12/26 16:05:47  rherveille
+--               Core is now a Multimaster I2C controller.
+--
 --               Revision 1.2  2002/11/30 22:24:37  rherveille
 --               Cleaned up code
 --
@@ -322,13 +325,13 @@ begin
 	                   else
 	                     c_state  <= st_idle;
 	                     core_cmd <= I2C_CMD_NOP;
+
+	                     -- generate command acknowledge signal
+	                     host_ack <= '1';
 	                   end if;
 
 	                   -- assign ack_out output to core_rxd (contains last received bit)
 	                   ack_out  <= core_rxd;
-
-	                   -- generate command acknowledge signal
-	                   host_ack <= '1';
 
 	                   core_txd <= '1';
 	                 else
@@ -339,6 +342,9 @@ begin
 	                 if (core_ack = '1') then
 	                   c_state  <= st_idle;
 	                   core_cmd <= I2C_CMD_NOP;
+
+	                   -- generate command acknowledge signal
+	                   host_ack <= '1';
 	                 end if;
 
 	              when others => -- illegal states

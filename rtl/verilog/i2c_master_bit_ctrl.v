@@ -37,16 +37,19 @@
 
 //  CVS Log
 //
-//  $Id: i2c_master_bit_ctrl.v,v 1.9 2003-03-10 14:26:37 rherveille Exp $
+//  $Id: i2c_master_bit_ctrl.v,v 1.10 2003-08-09 07:01:33 rherveille Exp $
 //
-//  $Date: 2003-03-10 14:26:37 $
-//  $Revision: 1.9 $
+//  $Date: 2003-08-09 07:01:33 $
+//  $Revision: 1.10 $
 //  $Author: rherveille $
 //  $Locker:  $
 //  $State: Exp $
 //
 // Change History:
 //               $Log: not supported by cvs2svn $
+//               Revision 1.9  2003/03/10 14:26:37  rherveille
+//               Fixed cmd_ack generation item (no bug).
+//
 //               Revision 1.8  2003/02/05 00:06:10  rherveille
 //               Fixed a bug where the core would trigger an erroneous 'arbitration lost' interrupt after being reset, when the reset pulse width < 3 clk cycles.
 //
@@ -274,26 +277,22 @@ module i2c_master_bit_ctrl(
 	// aribitration lost when:
 	// 1) master drives SDA high, but the i2c bus is low
 	// 2) stop detected while not requested
-	reg cmd_stop, dcmd_stop;
+	reg cmd_stop;
 	always @(posedge clk or negedge nReset)
 	  if (~nReset)
-	    begin
-	        cmd_stop  <= #1 1'b0;
-	        dcmd_stop <= #1 1'b0;
-	        al        <= #1 1'b0;
-	    end
+	    cmd_stop <= #1 1'b0;
 	  else if (rst)
-	    begin
-	        cmd_stop  <= #1 1'b0;
-	        dcmd_stop <= #1 1'b0;
-	        al        <= #1 1'b0;
-	    end
+	    cmd_stop <= #1 1'b0;
+	  else if (clk_en)
+	    cmd_stop <= #1 cmd == `I2C_CMD_STOP;
+
+	always @(posedge clk or negedge nReset)
+	  if (~nReset)
+	    al <= #1 1'b0;
+	  else if (rst)
+	    al <= #1 1'b0;
 	  else
-	    begin
-	        cmd_stop  <= #1 cmd == `I2C_CMD_STOP;
-	        dcmd_stop <= #1 cmd_stop;
-	        al        <= #1 (sda_chk & ~sSDA & sda_oen) | (sto_condition & ~dcmd_stop);
-	    end
+	    al <= #1 (sda_chk & ~sSDA & sda_oen) | (sto_condition & ~cmd_stop);
 
 
 	// generate dout signal (store SDA on rising edge of SCL)

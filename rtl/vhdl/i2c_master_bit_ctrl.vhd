@@ -37,16 +37,19 @@
 
 --  CVS Log
 --
---  $Id: i2c_master_bit_ctrl.vhd,v 1.7 2003-02-05 00:06:02 rherveille Exp $
+--  $Id: i2c_master_bit_ctrl.vhd,v 1.8 2003-08-09 07:01:13 rherveille Exp $
 --
---  $Date: 2003-02-05 00:06:02 $
---  $Revision: 1.7 $
+--  $Date: 2003-08-09 07:01:13 $
+--  $Revision: 1.8 $
 --  $Author: rherveille $
 --  $Locker:  $
 --  $State: Exp $
 --
 -- Change History:
 --               $Log: not supported by cvs2svn $
+--               Revision 1.7  2003/02/05 00:06:02  rherveille
+--               Fixed a bug where the core would trigger an erroneous 'arbitration lost' interrupt after being reset, when the reset pulse width < 3 clk cycles.
+--
 --               Revision 1.6  2003/02/01 02:03:06  rherveille
 --               Fixed a few 'arbitration lost' bugs. VHDL version only.
 --
@@ -205,7 +208,7 @@ begin
 	  signal dSCL, dSDA          : std_logic;  -- delayes sSCL and sSDA
 	  signal sta_condition       : std_logic;  -- start detected
 	  signal sto_condition       : std_logic;  -- stop detected
-	  signal cmd_stop, dcmd_stop : std_logic;  -- STOP command
+	  signal cmd_stop            : std_logic;  -- STOP command
 	  signal ibusy               : std_logic;  -- internal busy signal
 	begin
 	    -- synchronize SCL and SDA inputs
@@ -273,22 +276,20 @@ begin
 	    begin
 	      if (nReset = '0') then
 	        cmd_stop  <= '0';
-	        dcmd_stop <= '0';
 	        ial       <= '0';
 	      elsif (clk'event and clk = '1') then
 	        if (rst = '1') then
 	          cmd_stop  <= '0';
-	          dcmd_stop <= '0';
 	          ial       <= '0';
 	        else
-	          if (cmd = I2C_CMD_STOP) then
-	            cmd_stop <= '1';
-	          else
-	            cmd_stop <= '0';
-	          end if;
-	          dcmd_stop <= cmd_stop;
+	          if (clk_en = '1') then
+	            if (cmd = I2C_CMD_STOP) then
+	              cmd_stop <= '1';
+	            else
+	              cmd_stop <= '0';
+	            end if;
 
-	          ial <= (sda_chk and not sSDA and isda_oen) or (sto_condition and not dcmd_stop);
+	          ial <= (sda_chk and not sSDA and isda_oen) or (sto_condition and not cmd_stop);
 	        end if;
 	      end if;
 	    end process gen_al;

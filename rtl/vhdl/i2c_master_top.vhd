@@ -37,16 +37,19 @@
 
 --  CVS Log
 --
---  $Id: i2c_master_top.vhd,v 1.5 2003-02-01 02:03:06 rherveille Exp $
+--  $Id: i2c_master_top.vhd,v 1.6 2003-08-09 07:01:13 rherveille Exp $
 --
---  $Date: 2003-02-01 02:03:06 $
---  $Revision: 1.5 $
+--  $Date: 2003-08-09 07:01:13 $
+--  $Revision: 1.6 $
 --  $Author: rherveille $
 --  $Locker:  $
 --  $State: Exp $
 --
 -- Change History:
 --               $Log: not supported by cvs2svn $
+--               Revision 1.5  2003/02/01 02:03:06  rherveille
+--               Fixed a few 'arbitration lost' bugs. VHDL version only.
+--
 --               Revision 1.4  2002/12/26 16:05:47  rherveille
 --               Core is now a Multimaster I2C controller.
 --
@@ -233,25 +236,24 @@ begin
 	gen_cr: process(rst_i, wb_clk_i)
 	begin
 	    if (rst_i = '0') then
-	      cr <= (others => '0');
-	    elsif (wb_clk_i'event and wb_clk_i = '1') then
-	      if (wb_rst_i = '1') then
 	        cr <= (others => '0');
-	      elsif (wb_wacc = '1') then
-	        if ( (core_en = '1') and (wb_adr_i = 4) ) then
-	          -- only take new commands when i2c core enabled
-	          -- pending commands are finished
-	          cr <= wb_dat_i;
-			end if;
-	      else
-	          if (done = '1' or i2c_al = '1') then
-	            cr(7 downto 4) <= (others => '0'); -- clear command bits when command done
-	                                               -- or arbitration lost
-			  end if;
+	    elsif (wb_clk_i'event and wb_clk_i = '1') then
+	        if (wb_rst_i = '1') then
+	            cr <= (others => '0');
+	        elsif (wb_wacc = '1') then
+	            if ( (core_en = '1') and (wb_adr_i = 4) ) then
+	                -- only take new commands when i2c core enabled
+	                -- pending commands are finished
+	                cr <= wb_dat_i;
+	            end if;
+	        else
+	            if (done = '1' or i2c_al = '1') then
+	                cr(7 downto 4) <= (others => '0'); -- clear command bits when command done or arbitration lost
+	            end if;
 
-	          cr(2 downto 1) <= (others => '0');   -- reserved bits, always '0'
-	          cr(0) <= '0';                        -- clear IRQ_ACK bit
-	      end if;
+	            cr(2 downto 1) <= (others => '0');   -- reserved bits, always '0'
+	            cr(0) <= '0';                        -- clear IRQ_ACK bit
+	        end if;
 	    end if;
 	end process gen_cr;
 
