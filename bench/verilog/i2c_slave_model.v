@@ -36,16 +36,20 @@
 
 //  CVS Log
 //
-//  $Id: i2c_slave_model.v,v 1.3 2002-10-30 18:11:06 rherveille Exp $
+//  $Id: i2c_slave_model.v,v 1.4 2003-09-11 08:25:37 rherveille Exp $
 //
-//  $Date: 2002-10-30 18:11:06 $
-//  $Revision: 1.3 $
+//  $Date: 2003-09-11 08:25:37 $
+//  $Revision: 1.4 $
 //  $Author: rherveille $
 //  $Locker:  $
 //  $State: Exp $
 //
 // Change History:
 //               $Log: not supported by cvs2svn $
+//               Revision 1.3  2002/10/30 18:11:06  rherveille
+//               Added timing tests to i2c_model.
+//               Updated testbench.
+//
 //               Revision 1.2  2002/03/17 10:26:38  rherveille
 //               Fixed some race conditions in the i2c-slave model.
 //               Added debug information.
@@ -329,7 +333,7 @@ module i2c_slave_model (scl, sda);
 	  $setup(negedge sda &&& scl, negedge scl, normal_tsu_sta); // start condition
 	  $setup(posedge scl, posedge sda &&& scl, normal_tsu_sto); // stop condition
 
-	  $setup(posedge tst_sta, posedge tst_scl, normal_sta_sto); // stop to start time
+	  $setup(posedge tst_sta, posedge tst_sto, normal_sta_sto); // stop to start time
 	endspecify
 
 endmodule
