@@ -37,16 +37,19 @@
 
 //  CVS Log
 //
-//  $Id: tst_bench_top.v,v 1.6 2004-02-28 15:40:42 rherveille Exp $
+//  $Id: tst_bench_top.v,v 1.7 2005-02-27 09:24:18 rherveille Exp $
 //
-//  $Date: 2004-02-28 15:40:42 $
-//  $Revision: 1.6 $
+//  $Date: 2005-02-27 09:24:18 $
+//  $Revision: 1.7 $
 //  $Author: rherveille $
 //  $Locker:  $
 //  $State: Exp $
 //
 // Change History:
 //               $Log: not supported by cvs2svn $
+//               Revision 1.6  2004/02/28 15:40:42  rherveille
+//               *** empty log message ***
+//
 //               Revision 1.4  2003/12/05 11:04:38  rherveille
 //               Added slave address configurability
 //
@@ -71,7 +74,7 @@ module tst_bench_top();
 	reg  rstn;
 
 	wire [31:0] adr;
-	wire [ 7:0] dat_i, dat_o;
+	wire [ 7:0] dat_i, dat_o, dat0_i, dat1_i;
 	wire we;
 	wire stb;
 	wire cyc;
@@ -80,9 +83,8 @@ module tst_bench_top();
 
 	reg [7:0] q, qq;
 
-	wire scl, scl_o, scl_oen;
-	wire sda, sda_o, sda_oen;
-	reg rscl, rsda;
+	wire scl, scl0_o, scl0_oen, scl1_o, scl1_oen;
+	wire sda, sda0_o, sda0_oen, sda1_o, sda1_oen;
 
 	parameter PRER_LO = 3'b000;
 	parameter PRER_HI = 3'b001;
@@ -122,6 +124,11 @@ module tst_bench_top();
 		.rty(1'b0)
 	);
 
+	wire stb0 = stb & ~adr[3];
+	wire stb1 = stb &  adr[3];
+
+	assign dat_i = ({{8'd8}{stb0}} & dat0_i) | ({{8'd8}{stb1}} & dat1_i);
+
 	// hookup wishbone_i2c_master core
 	i2c_master_top i2c_top (
 
@@ -131,21 +138,45 @@ module tst_bench_top();
 		.arst_i(rstn),
 		.wb_adr_i(adr[2:0]),
 		.wb_dat_i(dat_o),
-		.wb_dat_o(dat_i),
+		.wb_dat_o(dat0_i),
 		.wb_we_i(we),
-		.wb_stb_i(stb),
+		.wb_stb_i(stb0),
 		.wb_cyc_i(cyc),
 		.wb_ack_o(ack),
 		.wb_inta_o(inta),
 
 		// i2c signals
 		.scl_pad_i(scl),
-		.scl_pad_o(scl_o),
-		.scl_padoen_o(scl_oen),
+		.scl_pad_o(scl0_o),
+		.scl_padoen_o(scl0_oen),
 		.sda_pad_i(sda),
-		.sda_pad_o(sda_o),
-		.sda_padoen_o(sda_oen)
+		.sda_pad_o(sda0_o),
+		.sda_padoen_o(sda0_oen)
+	),
+	i2c_top2 (
+
+		// wishbone interface
+		.wb_clk_i(clk),
+		.wb_rst_i(1'b0),
+		.arst_i(rstn),
+		.wb_adr_i(adr[2:0]),
+		.wb_dat_i(dat_o),
+		.wb_dat_o(dat1_i),
+		.wb_we_i(we),
+		.wb_stb_i(stb1),
+		.wb_cyc_i(cyc),
+		.wb_ack_o(ack),
+		.wb_inta_o(inta),
+
+		// i2c signals
+		.scl_pad_i(scl),
+		.scl_pad_o(scl1_o),
+		.scl_padoen_o(scl1_oen),
+		.sda_pad_i(sda),
+		.sda_pad_o(sda1_o),
+		.sda_padoen_o(sda1_oen)
 	);
+
 
 	// hookup i2c slave model
 	i2c_slave_model #(SADR) i2c_slave (
@@ -153,13 +184,12 @@ module tst_bench_top();
 		.sda(sda)
 	);
 
-	// create i2c lines
-	always rscl = #600 scl_oen ? 1'bz : scl_o; // create tri-state buffer for i2c_master scl line
-	always rsda = #600 sda_oen ? 1'bz : sda_o; // create tri-state buffer for i2c_master sda line
+        // create i2c lines
+	delay m0_scl (scl0_oen ? 1'bz : scl0_o, scl),
+	      m1_scl (scl1_oen ? 1'bz : scl1_o, scl),
+	      m0_sda (sda0_oen ? 1'bz : sda0_o, sda),
+	      m1_sda (sda1_oen ? 1'bz : sda1_o, sda);
 
-	assign scl = rscl;
-	assign sda = rsda;
-	
 	pullup p1(scl); // pullup scl line
 	pullup p2(sda); // pullup sda line
 
@@ -412,5 +442,15 @@ module tst_bench_top();
 
 endmodule
 
+module delay (in, out);
+  input  in;
+  output out;
+
+  assign out = in;
+
+  specify
+    (in => out) = (600,600);
+  endspecify
+endmodule
 
 
