@@ -37,16 +37,19 @@
 
 //  CVS Log
 //
-//  $Id: i2c_master_top.v,v 1.8 2002-12-26 16:05:12 rherveille Exp $
+//  $Id: i2c_master_top.v,v 1.9 2003-01-09 16:44:45 rherveille Exp $
 //
-//  $Date: 2002-12-26 16:05:12 $
-//  $Revision: 1.8 $
+//  $Date: 2003-01-09 16:44:45 $
+//  $Revision: 1.9 $
 //  $Author: rherveille $
 //  $Locker:  $
 //  $State: Exp $
 //
 // Change History:
 //               $Log: not supported by cvs2svn $
+//               Revision 1.8  2002/12/26 16:05:12  rherveille
+//               Small code simplifications
+//
 //               Revision 1.7  2002/12/26 15:02:32  rherveille
 //               Core is now a Multimaster I2C controller
 //
@@ -168,14 +171,12 @@ module i2c_master_top(
 	        prer <= #1 16'hffff;
 	        ctr  <= #1  8'h0;
 	        txr  <= #1  8'h0;
-	        cr   <= #1  8'h0;
 	    end
 	  else if (wb_rst_i)
 	    begin
 	        prer <= #1 16'hffff;
 	        ctr  <= #1  8'h0;
 	        txr  <= #1  8'h0;
-	        cr   <= #1  8'h0;
 	    end
 	  else
 	    if (wb_wacc)
