@@ -13,6 +13,9 @@ module i2c_master_top(
 	wb_we_i, wb_stb_i, wb_cyc_i, wb_ack_o, wb_inta_o,
 	scl_pad_i, scl_pad_o, scl_padoen_o, sda_pad_i, sda_pad_o, sda_padoen_o );
 
+	// parameters
+	parameter ARST_LVL = 1'b0; // asynchronous reset level
+
 	//
 	// inputs & outputs
 	//
@@ -73,7 +76,7 @@ module i2c_master_top(
 	//
 
 	// generate internal reset
-	wire rst_i = arst_i ^ `I2C_RST_LVL;
+	wire rst_i = arst_i ^ ARST_LVL;
 	
 	// generate acknowledge output signal
 	assign wb_ack_o = wb_cyc_i && wb_stb_i; // because timing is always honored
@@ -208,6 +211,7 @@ module i2c_master_top(
 		assign sr[0]   = irq_flag;
 
 endmodule
+
 
 
 
