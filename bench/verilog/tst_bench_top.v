@@ -37,24 +37,16 @@
 
 //  CVS Log
 //
-//  $Id: tst_bench_top.v,v 1.4 2003-12-05 11:04:38 rherveille Exp $
+//  $Id: tst_bench_top.v,v 1.5 2004-02-28 15:32:55 rherveille Exp $
 //
-//  $Date: 2003-12-05 11:04:38 $
-//  $Revision: 1.4 $
+//  $Date: 2004-02-28 15:32:55 $
+//  $Revision: 1.5 $
 //  $Author: rherveille $
 //  $Locker:  $
 //  $State: Exp $
 //
 // Change History:
 //               $Log: not supported by cvs2svn $
-//               Revision 1.3  2002/10/30 18:11:06  rherveille
-//               Added timing tests to i2c_model.
-//               Updated testbench.
-//
-//               Revision 1.2  2002/03/17 10:26:38  rherveille
-//               Fixed some race conditions in the i2c-slave model.
-//               Added debug information.
-//               Added headers.
 //
 
 `include "timescale.v"
@@ -75,90 +67,67 @@ module tst_bench_top();
 	wire ack;
 	wire inta;
 
-	reg [7:0] q, qq;
+	reg [1:0] cpol, cpha;
+	reg [2:0] e;
 
-	wire scl, scl_o, scl_oen;
-	wire sda, sda_o, sda_oen;
-	reg rscl, rsda;
+	wire sck, mosi, miso;
+	reg [7:0] q;
 
-	parameter PRER_LO = 3'b000;
-	parameter PRER_HI = 3'b001;
-	parameter CTR     = 3'b010;
-	parameter RXR     = 3'b011;
-	parameter TXR     = 3'b011;
-	parameter CR      = 3'b100;
-	parameter SR      = 3'b100;
-
-	parameter TXR_R   = 3'b101; // undocumented / reserved output
-	parameter CR_R    = 3'b110; // undocumented / reserved output
-
-	parameter RD      = 1'b1;
-	parameter WR      = 1'b0;
-	parameter SADR    = 7'b0010_000;
+	parameter SPCR = 2'b00;
+	parameter SPSR = 2'b01;
+	parameter SPDR = 2'b10;
+	parameter SPER = 2'b11;
 
 	//
 	// Module body
 	//
+	integer n;
 
 	// generate clock
 	always #5 clk = ~clk;
 
 	// hookup wishbone master model
 	wb_master_model #(8, 32) u0 (
-		.clk(clk),
-		.rst(rstn),
-		.adr(adr),
-		.din(dat_i),
+		.clk (clk),
+		.rst (rstn),
+		.adr (adr),
+		.din (dat_i),
 		.dout(dat_o),
-		.cyc(cyc),
-		.stb(stb),
-		.we(we),
-		.sel(),
-		.ack(ack),
-		.err(1'b0),
-		.rty(1'b0)
+		.cyc (cyc),
+		.stb (stb),
+		.we  (we),
+		.sel (),
+		.ack (ack),
+		.err (1'b0),
+		.rty (1'b0)
 	);
 
-	// hookup wishbone_i2c_master core
-	i2c_master_top i2c_top (
-
+	// hookup spi core
+	simple_spi_top spi_top (
 		// wishbone interface
-		.wb_clk_i(clk),
-		.wb_rst_i(1'b0),
-		.arst_i(rstn),
-		.wb_adr_i(adr[2:0]),
-		.wb_dat_i(dat_o),
-		.wb_dat_o(dat_i),
-		.wb_we_i(we),
-		.wb_stb_i(stb),
-		.wb_cyc_i(cyc),
-		.wb_ack_o(ack),
-		.wb_inta_o(inta),
+		.clk_i (clk),
+		.rst_i (rstn),
+		.cyc_i (cyc),
+		.stb_i (stb),
+		.adr_i (adr[1:0]),
+		.we_i  (we),
+		.dat_i (dat_o),
+		.dat_o (dat_i),
+		.ack_o (ack),
+		.inta_o(inta),
 
-		// i2c signals
-		.scl_pad_i(scl),
-		.scl_pad_o(scl_o),
-		.scl_padoen_o(scl_oen),
-		.sda_pad_i(sda),
-		.sda_pad_o(sda_o),
-		.sda_padoen_o(sda_oen)
+		.sck_o (sck),
+		.mosi_o(mosi),
+		.miso_i(miso)
 	);
 
-	// hookup i2c slave model
-	i2c_slave_model #(SADR) i2c_slave (
-		.scl(scl),
-		.sda(sda)
+	// hookup spi slave model
+	spi_slave_model spi_slave (
+		.csn(1'b0),
+		.sck(sck),
+		.di(mosi),
+		.do(miso)
 	);
-
-	// create i2c lines
-	always rscl = #600 scl_oen ? 1'bz : scl_o; // create tri-state buffer for i2c_master scl line
-	always rsda = #600 sda_oen ? 1'bz : sda_o; // create tri-state buffer for i2c_master sda line
-
-	assign scl = rscl;
-	assign sda = rsda;
-	
-	pullup p1(scl); // pullup scl line
-	pullup p2(sda); // pullup sda line
 
 	initial
 	  begin
@@ -168,14 +137,11 @@ module tst_bench_top();
 	         $display("INFO: Signal dump enabled ...\n\n");
 	      `endif
 
-//	      force i2c_slave.debug = 1'b1; // enable i2c_slave debug information
-	      force i2c_slave.debug = 1'b0; // disable i2c_slave debug information
+//	      force spi_slave.debug = 1'b1; // enable spi_slave debug information
+	      force spi_slave.debug = 1'b0; // disable spi_slave debug information
 
 	      $display("\nstatus: %t Testbench started\n\n", $time);
 
-//	      $dumpfile("bench.vcd");
-//	      $dumpvars(1, tst_bench_top);
-//	      $dumpvars(1, tst_bench_top.i2c_slave);
 
 	      // initially values
 	      clk = 0;
@@ -194,213 +160,56 @@ module tst_bench_top();
 	      //
 	      // program core
 	      //
+	      for (cpol=0; cpol<=1; cpol=cpol+1)
+	      for (cpha=0; cpha<=1; cpha=cpha+1) 
+	      for (e=0; e<=3; e=e+1)
+	      begin
+	          //set cpol/cpha in spi slave model
+	          force spi_slave.cpol=cpol[0];
+	          force spi_slave.cpha=cpha[0];
+	          $display("cpol:%b, cpha:%b, e:%b", cpol[0],cpha[0],e[1:0]);
 
-	      // program internal registers
-	      u0.wb_write(1, PRER_LO, 8'hfa); // load prescaler lo-byte
-	      u0.wb_write(1, PRER_LO, 8'hc8); // load prescaler lo-byte
-	      u0.wb_write(1, PRER_HI, 8'h00); // load prescaler hi-byte
-	      $display("status: %t programmed registers", $time);
+	          // program internal registers
 
-	      u0.wb_cmp(0, PRER_LO, 8'hc8); // verify prescaler lo-byte
-	      u0.wb_cmp(0, PRER_HI, 8'h00); // verify prescaler hi-byte
-	      $display("status: %t verified registers", $time);
+	          // load control register
+	          u0.wb_write(1, SPCR, {4'b0101,cpol[0],cpha[0],e[1:0]} );
+	          //verify control register
+	          u0.wb_cmp  (0, SPCR, {4'b0101,cpol[0],cpha[0],e[1:0]} );
 
-	      u0.wb_write(1, CTR,     8'h80); // enable core
-	      $display("status: %t core enabled", $time);
+	          
+	          // load extended control register
+	          u0.wb_write(1,SPER,8'h0);
+	          //verify extended control register
+	          u0.wb_cmp (0,SPER,8'h0);
 
-	      //
-	      // access slave (write)
-	      //
+	          //fill memory
+	          for(n=0;n<8;n=n+1) begin
+	            u0.wb_write(1,SPDR,{cpol[0],cpha[0],e[1:0],n[3:0]});
+	            //wait for transfer to finish
+	            u0.wb_read(1,SPSR,q);
+	            while(~q[7]) u0.wb_read(1,SPSR,q);
+	            //clear 'spif' bit
+	            u0.wb_write(1,SPSR,8'h80);
+	          end
 
-	      // drive slave address
-	      u0.wb_write(1, TXR, {SADR,WR} ); // present slave address, set write-bit
-	      u0.wb_write(0, CR,      8'h90 ); // set command (start, write)
-	      $display("status: %t generate 'start', write cmd %0h (slave address+write)", $time, {SADR,WR} );
-
-	      // check tip bit
-	      u0.wb_read(1, SR, q);
-	      while(q[1])
-	           u0.wb_read(0, SR, q); // poll it until it is zero
-	      $display("status: %t tip==0", $time);
-
-	      // send memory address
-	      u0.wb_write(1, TXR,     8'h01); // present slave's memory address
-	      u0.wb_write(0, CR,      8'h10); // set command (write)
-	      $display("status: %t write slave memory address 01", $time);
-
-	      // check tip bit
-	      u0.wb_read(1, SR, q);
-	      while(q[1])
-	           u0.wb_read(0, SR, q); // poll it until it is zero
-	      $display("status: %t tip==0", $time);
-
-	      // send memory contents
-	      u0.wb_write(1, TXR,     8'ha5); // present data
-	      u0.wb_write(0, CR,      8'h10); // set command (write)
-	      $display("status: %t write data a5", $time);
-
-	      // check tip bit
-	      u0.wb_read(1, SR, q);
-	      while(q[1])
-	           u0.wb_read(1, SR, q); // poll it until it is zero
-	      $display("status: %t tip==0", $time);
-
-	      // send memory contents for next memory address (auto_inc)
-	      u0.wb_write(1, TXR,     8'h5a); // present data
-	      u0.wb_write(0, CR,      8'h50); // set command (stop, write)
-	      $display("status: %t write next data 5a, generate 'stop'", $time);
+	          //verify memory
+	          for(n=0;n<8;n=n+1) begin
+	            u0.wb_write(1,SPDR,~n);
+	            //wait for transfer to finish
+	            u0.wb_read(1,SPSR,q);
+	            while(~q[7]) u0.wb_read(1,SPSR,q);
+	            //clear 'spif' bit
+	            u0.wb_write(1,SPSR,8'h80);
+	            //verify memory content
+	            u0.wb_cmp(0,SPDR,{cpol[0],cpha[0],e[1:0],n[3:0]});
+	          end
+	      end
 
 	      // check tip bit
-	      u0.wb_read(1, SR, q);
-	      while(q[1])
-	           u0.wb_read(1, SR, q); // poll it until it is zero
-	      $display("status: %t tip==0", $time);
-
-	      //
-	      // delay
-	      //
-//	      #100000; // wait for 100us.
-//	      $display("status: %t wait 100us", $time);
-
-	      //
-	      // access slave (read)
-	      //
-
-	      // drive slave address
-	      u0.wb_write(1, TXR,{SADR,WR} ); // present slave address, set write-bit
-	      u0.wb_write(0, CR,     8'h90 ); // set command (start, write)
-	      $display("status: %t generate 'start', write cmd %0h (slave address+write)", $time, {SADR,WR} );
-
-	      // check tip bit
-	      u0.wb_read(1, SR, q);
-	      while(q[1])
-	           u0.wb_read(1, SR, q); // poll it until it is zero
-	      $display("status: %t tip==0", $time);
-
-	      // send memory address
-	      u0.wb_write(1, TXR,     8'h01); // present slave's memory address
-	      u0.wb_write(0, CR,      8'h10); // set command (write)
-	      $display("status: %t write slave address 01", $time);
-
-	      // check tip bit
-	      u0.wb_read(1, SR, q);
-	      while(q[1])
-	           u0.wb_read(1, SR, q); // poll it until it is zero
-	      $display("status: %t tip==0", $time);
-
-	      // drive slave address
-	      u0.wb_write(1, TXR, {SADR,RD} ); // present slave's address, set read-bit
-	      u0.wb_write(0, CR,      8'h90 ); // set command (start, write)
-	      $display("status: %t generate 'repeated start', write cmd %0h (slave address+read)", $time, {SADR,RD} );
-
-	      // check tip bit
-	      u0.wb_read(1, SR, q);
-	      while(q[1])
-	           u0.wb_read(1, SR, q); // poll it until it is zero
-	      $display("status: %t tip==0", $time);
-
-	      // read data from slave
-	      u0.wb_write(1, CR,      8'h20); // set command (read, ack_read)
-	      $display("status: %t read + ack", $time);
-
-	      // check tip bit
-	      u0.wb_read(1, SR, q);
-	      while(q[1])
-	           u0.wb_read(1, SR, q); // poll it until it is zero
-	      $display("status: %t tip==0", $time);
-
-	      // check data just received
-	      u0.wb_read(1, RXR, qq);
-	      if(qq !== 8'ha5)
-	        $display("\nERROR: Expected a5, received %x at time %t", qq, $time);
-	      else
-	        $display("status: %t received %x", $time, qq);
-
-	      // read data from slave
-	      u0.wb_write(1, CR,      8'h20); // set command (read, ack_read)
-	      $display("status: %t read + ack", $time);
-
-	      // check tip bit
-	      u0.wb_read(1, SR, q);
-	      while(q[1])
-	           u0.wb_read(1, SR, q); // poll it until it is zero
-	      $display("status: %t tip==0", $time);
-
-	      // check data just received
-	      u0.wb_read(1, RXR, qq);
-	      if(qq !== 8'h5a)
-	        $display("\nERROR: Expected 5a, received %x at time %t", qq, $time);
-	      else
-	        $display("status: %t received %x", $time, qq);
-
-	      // read data from slave
-	      u0.wb_write(1, CR,      8'h20); // set command (read, ack_read)
-	      $display("status: %t read + ack", $time);
-
-	      // check tip bit
-	      u0.wb_read(1, SR, q);
-	      while(q[1])
-	           u0.wb_read(1, SR, q); // poll it until it is zero
-	      $display("status: %t tip==0", $time);
-
-	      // check data just received
-	      u0.wb_read(1, RXR, qq);
-	      $display("status: %t received %x from 3rd read address", $time, qq);
-
-	      // read data from slave
-	      u0.wb_write(1, CR,      8'h28); // set command (read, nack_read)
-	      $display("status: %t read + nack", $time);
-
-	      // check tip bit
-	      u0.wb_read(1, SR, q);
-	      while(q[1])
-	           u0.wb_read(1, SR, q); // poll it until it is zero
-	      $display("status: %t tip==0", $time);
-
-	      // check data just received
-	      u0.wb_read(1, RXR, qq);
-	      $display("status: %t received %x from 4th read address", $time, qq);
-
-	      //
-	      // check invalid slave memory address
-	      //
-
-	      // drive slave address
-	      u0.wb_write(1, TXR, {SADR,WR} ); // present slave address, set write-bit
-	      u0.wb_write(0, CR,      8'h90 ); // set command (start, write)
-	      $display("status: %t generate 'start', write cmd %0h (slave address+write). Check invalid address", $time, {SADR,WR} );
-
-	      // check tip bit
-	      u0.wb_read(1, SR, q);
-	      while(q[1])
-	           u0.wb_read(1, SR, q); // poll it until it is zero
-	      $display("status: %t tip==0", $time);
-
-	      // send memory address
-	      u0.wb_write(1, TXR,     8'h10); // present slave's memory address
-	      u0.wb_write(0, CR,      8'h10); // set command (write)
-	      $display("status: %t write slave memory address 10", $time);
-
-	      // check tip bit
-	      u0.wb_read(1, SR, q);
-	      while(q[1])
-	           u0.wb_read(1, SR, q); // poll it until it is zero
-	      $display("status: %t tip==0", $time);
-
-	      // slave should have send NACK
-	      $display("status: %t Check for nack", $time);
-	      if(!q[7])
-	        $display("\nERROR: Expected NACK, received ACK\n");
-
-	      // read data from slave
-	      u0.wb_write(1, CR,      8'h40); // set command (stop)
-	      $display("status: %t generate 'stop'", $time);
-
-	      // check tip bit
-	      u0.wb_read(1, SR, q);
-	      while(q[1])
-	      u0.wb_read(1, SR, q); // poll it until it is zero
-	      $display("status: %t tip==0", $time);
+//	      u0.wb_read(1, SR, q);
+//	      while(q[1])
+//	      u0.wb_read(1, SR, q); // poll it until it is zero
+//	      $display("status: %t tip==0", $time);
 
 	      #250000; // wait 250us
 	      $display("\n\nstatus: %t Testbench done", $time);
@@ -408,6 +217,4 @@ module tst_bench_top();
 	  end
 
 endmodule
-
-
 
