@@ -37,16 +37,19 @@
 
 //  CVS Log
 //
-//  $Id: i2c_master_top.v,v 1.6 2002-11-30 22:24:40 rherveille Exp $
+//  $Id: i2c_master_top.v,v 1.7 2002-12-26 15:02:32 rherveille Exp $
 //
-//  $Date: 2002-11-30 22:24:40 $
-//  $Revision: 1.6 $
+//  $Date: 2002-12-26 15:02:32 $
+//  $Revision: 1.7 $
 //  $Author: rherveille $
 //  $Locker:  $
 //  $State: Exp $
 //
 // Change History:
 //               $Log: not supported by cvs2svn $
+//               Revision 1.6  2002/11/30 22:24:40  rherveille
+//               Cleaned up code
+//
 //               Revision 1.5  2001/11/10 10:52:55  rherveille
 //               Changed PRER reset value from 0x0000 to 0xffff, conform specs.
 //
@@ -58,7 +61,7 @@
 `include "i2c_master_defines.v"
 
 module i2c_master_top(
-	wb_clk_i, wb_rst_i, arst_i, wb_adr_i, wb_dat_i, wb_dat_o, 
+	wb_clk_i, wb_rst_i, arst_i, wb_adr_i, wb_dat_i, wb_dat_o,
 	wb_we_i, wb_stb_i, wb_cyc_i, wb_ack_o, wb_inta_o,
 	scl_pad_i, scl_pad_o, scl_padoen_o, sda_pad_i, sda_pad_o, sda_padoen_o );
 
@@ -123,6 +126,8 @@ module i2c_master_top(
 	reg  tip;         // transfer in progress
 	reg  irq_flag;    // interrupt pending flag
 	wire i2c_busy;    // bus busy (start signal detected)
+	wire i2c_al;      // i2c bus arbitration lost
+	reg  al;          // status register arbitration lost bit
 
 	//
 	// module body
@@ -130,6 +135,9 @@ module i2c_master_top(
 
 	// generate internal reset
 	wire rst_i = arst_i ^ ARST_LVL;
+
+	// generate wishbone signals
+	wire wb_wacc = wb_cyc_i & wb_stb_i & wb_we_i;
 
 	// generate acknowledge output signal
 	always @(posedge wb_clk_i)
@@ -150,7 +158,6 @@ module i2c_master_top(
 	  endcase
 	end
 
-
 	// generate registers
 	always @(posedge wb_clk_i or negedge rst_i)
 	  if (!rst_i)
@@ -168,27 +175,33 @@ module i2c_master_top(
 	        cr   <= #1  8'h0;
 	    end
 	  else
-	    if (wb_cyc_i && wb_stb_i && wb_we_i)
-	      begin
-	          if (!wb_adr_i[2])
-	            case (wb_adr_i[1:0]) // synopsis full_case parallel_case
-	              2'b00 : prer [ 7:0] <= #1 wb_dat_i;
-	              2'b01 : prer [15:8] <= #1 wb_dat_i;
-	              2'b10 : ctr         <= #1 wb_dat_i;
-	              2'b11 : txr         <= #1 wb_dat_i;
-	            endcase
-	          else
-	            if (core_en && (wb_adr_i[1:0] == 2'b00) ) // only take new commands when i2c core enabled, pending commands are finished
-	              cr <= #1 wb_dat_i;
-	      end
-	    else
-	      begin
-	          if (done)
-	            cr[7:4] <= #1 4'h0; // clear command bits when done
+	    if (wb_wacc)
+	      case (wb_adr_i) // synopsis full_case parallel_case
+	         3'b000 : prer [ 7:0] <= #1 wb_dat_i;
+	         3'b001 : prer [15:8] <= #1 wb_dat_i;
+	         3'b010 : ctr         <= #1 wb_dat_i;
+	         3'b011 : txr         <= #1 wb_dat_i;
+	      endcase
 
-	          cr[2:1] <= #1 2'b00;  // reserved bits
-	          cr[0]   <= #1 cr[0] && irq_flag; // clear when irq_flag cleared
-	      end
+	// generate command register (special case)
+	always @(posedge wb_clk_i or negedge rst_i)
+	  if (~rst_i)
+	    cr <= #1 8'h0;
+	  else if (wb_rst_i)
+	    cr <= #1 8'h0;
+	  else if (wb_wacc)
+	    begin
+	        if (core_en & (wb_adr_i == 3'b100) )
+	          cr <= #1 wb_dat_i;
+	    end
+	  else
+	    begin
+	        if (done | i2c_al)
+	          cr[7:4] <= #1 4'h0;           // clear command bits when done
+	                                        // or when aribitration lost
+	        cr[2:1] <= #1 2'b0;             // reserved bits
+	        cr[0]   <= #1 cr[0] & irq_flag; // clear when irq_flag is cleared
+	    end
 
 
 	// decode command register
@@ -220,6 +233,7 @@ module i2c_master_top(
 		.ack_out  ( irxack       ),
 		.dout     ( rxr          ),
 		.i2c_busy ( i2c_busy     ),
+		.i2c_al   ( i2c_al       ),
 		.scl_i    ( scl_pad_i    ),
 		.scl_o    ( scl_pad_o    ),
 		.scl_oen  ( scl_padoen_o ),
@@ -228,26 +242,28 @@ module i2c_master_top(
 		.sda_oen  ( sda_padoen_o )
 	);
 
-
 	// status register block + interrupt request signal
 	always @(posedge wb_clk_i or negedge rst_i)
 	  if (!rst_i)
 	    begin
+	        al       <= #1 1'b0;
 	        rxack    <= #1 1'b0;
 	        tip      <= #1 1'b0;
 	        irq_flag <= #1 1'b0;
 	    end
 	  else if (wb_rst_i)
 	    begin
+	        al       <= #1 1'b0;
 	        rxack    <= #1 1'b0;
 	        tip      <= #1 1'b0;
 	        irq_flag <= #1 1'b0;
 	    end
 	  else
 	    begin
+	        al       <= #1 i2c_al | (al & ~sta);
 	        rxack    <= #1 irxack;
 	        tip      <= #1 (rd | wr);
-	        irq_flag <= #1 (done | irq_flag) & ~iack; // interrupt request flag is always generated
+	        irq_flag <= #1 (done | i2c_al | irq_flag) & ~iack; // interrupt request flag is always generated
 	    end
 
 	// generate interrupt request signals
@@ -262,7 +278,8 @@ module i2c_master_top(
 	// assign status register bits
 	assign sr[7]   = rxack;
 	assign sr[6]   = i2c_busy;
-	assign sr[5:2] = 4'h0; // reserved
+	assign sr[5]   = al;
+	assign sr[4:2] = 3'h0; // reserved
 	assign sr[1]   = tip;
 	assign sr[0]   = irq_flag;
 

@@ -37,16 +37,19 @@
 
 //  CVS Log
 //
-//  $Id: i2c_master_bit_ctrl.v,v 1.5 2002-11-30 22:24:40 rherveille Exp $
+//  $Id: i2c_master_bit_ctrl.v,v 1.6 2002-12-26 15:02:32 rherveille Exp $
 //
-//  $Date: 2002-11-30 22:24:40 $
-//  $Revision: 1.5 $
+//  $Date: 2002-12-26 15:02:32 $
+//  $Revision: 1.6 $
 //  $Author: rherveille $
 //  $Locker:  $
 //  $State: Exp $
 //
 // Change History:
 //               $Log: not supported by cvs2svn $
+//               Revision 1.5  2002/11/30 22:24:40  rherveille
+//               Cleaned up code
+//
 //               Revision 1.4  2002/10/30 18:10:07  rherveille
 //               Fixed some reported minor start/stop generation timing issuess.
 //
@@ -98,10 +101,17 @@
 // Tbuf        4.7us            1.3us   Bus free time between a stop and start condition
 //
 
+// synopsys translate_off
 `include "timescale.v"
+// synopsys translate_on
+
 `include "i2c_master_defines.v"
 
-module i2c_master_bit_ctrl(clk, rst, nReset, clk_cnt, ena, cmd, cmd_ack, busy, din, dout, scl_i, scl_o, scl_oen, sda_i, sda_o, sda_oen);
+module i2c_master_bit_ctrl(
+	clk, rst, nReset, 
+	clk_cnt, ena, cmd, cmd_ack, busy, al, din, dout,
+	scl_i, scl_o, scl_oen, sda_i, sda_o, sda_oen
+	);
 
 	//
 	// inputs & outputs
@@ -114,23 +124,25 @@ module i2c_master_bit_ctrl(clk, rst, nReset, clk_cnt, ena, cmd, cmd_ack, busy, d
 	input [15:0] clk_cnt; // clock prescale value
 
 	input  [3:0] cmd;
-	output       cmd_ack;
+	output       cmd_ack; // command complete acknowledge
 	reg cmd_ack;
-	output       busy;
+	output       busy;    // i2c bus busy
 	reg busy;
+	output       al;      // i2c bus arbitration lost
+	reg al;
 
 	input  din;
 	output dout;
 	reg dout;
 
 	// I2C lines
-	input  scl_i;    // i2c clock line input
-	output scl_o;    // i2c clock line output
-	output scl_oen;  // i2c clock line output enable (active low)
+	input  scl_i;         // i2c clock line input
+	output scl_o;         // i2c clock line output
+	output scl_oen;       // i2c clock line output enable (active low)
 	reg scl_oen;
-	input  sda_i;    // i2c data line input
-	output sda_o;    // i2c data line output
-	output sda_oen;  // i2c data line output enable (active low)
+	input  sda_i;         // i2c data line input
+	output sda_o;         // i2c data line output
+	output sda_oen;       // i2c data line output enable (active low)
 	reg sda_oen;
 
 
@@ -140,6 +152,7 @@ module i2c_master_bit_ctrl(clk, rst, nReset, clk_cnt, ena, cmd, cmd_ack, busy, d
 
 	reg sSCL, sSDA;             // synchronized SCL and SDA inputs
 	reg dscl_oen;               // delayed scl_oen
+	reg sda_chk;                // check SDA output (Multi-master arbitration)
 	reg clk_en;                 // clock generation signals
 	wire slave_wait;
 //	reg [15:0] cnt = clk_cnt;   // clock divider counter (simulation)
@@ -149,19 +162,13 @@ module i2c_master_bit_ctrl(clk, rst, nReset, clk_cnt, ena, cmd, cmd_ack, busy, d
 	// module body
 	//
 
-	// synchronize SCL and SDA inputs
-	always @(posedge clk)
-	  begin
-	      sSCL <= #1 scl_i;
-	      sSDA <= #1 sda_i;
-	  end
-
+	// whenever the slave is not ready it can delay the cycle by pulling SCL low
 	// delay scl_oen
 	always @(posedge clk)
 	  dscl_oen <= #1 scl_oen;
 
-	// whenever the slave is not ready it can delay the cycle by pulling SCL low
 	assign slave_wait = dscl_oen && !sSCL;
+
 
 	// generate clk enable signal
 	always @(posedge clk or negedge nReset)
@@ -175,31 +182,44 @@ module i2c_master_bit_ctrl(clk, rst, nReset, clk_cnt, ena, cmd, cmd_ack, busy, d
 	        cnt    <= #1 16'h0;
 	        clk_en <= #1 1'b1;
 	    end
-	  else if ( !(|cnt) || !ena)
-	    begin
-	        cnt    <= #1 clk_cnt;
-	        clk_en <= #1 1'b1;
-	    end
+	  else if ( ~|cnt || ~ena)
+	    if (~slave_wait)
+	      begin
+	          cnt    <= #1 clk_cnt;
+	          clk_en <= #1 1'b1;
+	      end
+	    else
+	      begin
+	          cnt    <= #1 cnt;
+	          clk_en <= #1 1'b0;
+	      end
 	  else
 	    begin
-	        if(!slave_wait)
-	          cnt <= #1 cnt - 16'h1;
-
+                cnt    <= #1 cnt - 16'h1;
 	        clk_en <= #1 1'b0;
 	    end
 
 
 	// generate bus status controller
-	reg dSDA;
+	reg dSCL, dSDA;
 	reg sta_condition;
 	reg sto_condition;
+
+	// synchronize SCL and SDA inputs
+	// reduce metastability risc
+	always @(posedge clk)
+	  begin
+	      sSCL <= #1 scl_i;
+	      sSDA <= #1 sda_i;
+
+	      dSCL <= #1 sSCL;
+	      dSDA <= #1 sSDA;
+	  end
 
 	// detect start condition => detect falling edge on SDA while SCL is high
 	// detect stop condition => detect rising edge on SDA while SCL is high
 	always @(posedge clk)
 	  begin
-	      dSDA <= #1 sSDA; // generate a delayed version of sSDA
-
 	      sta_condition <= #1 ~sSDA &  dSDA & sSCL;
 	      sto_condition <= #1  sSDA & ~dSDA & sSCL;
 	  end
@@ -213,6 +233,23 @@ module i2c_master_bit_ctrl(clk, rst, nReset, clk_cnt, ena, cmd, cmd_ack, busy, d
 	  else
 	    busy <= #1 (sta_condition | busy) & ~sto_condition;
 
+	// generate arbitration lost signal
+	// aribitration lost when:
+	// 1) master drives SDA high, but the i2c bus is low
+	// 2) stop detected while not requested
+	reg cmd_stop, dcmd_stop;
+	always @(posedge clk)
+	begin
+	  cmd_stop  <= #1 cmd == `I2C_CMD_STOP;
+	  dcmd_stop <= #1 cmd_stop;
+
+	  al <= #1 (sda_chk & ~sSDA & sda_oen) | (sto_condition & ~dcmd_stop);
+	end
+
+	// generate dout signal (store SDA on rising edge of SCL)
+	always @(posedge clk)
+	  if(sSCL & ~dSCL)
+	    dout <= #1 sSDA;
 
 	// generate statemachine
 
@@ -243,17 +280,17 @@ module i2c_master_bit_ctrl(clk, rst, nReset, clk_cnt, ena, cmd, cmd_ack, busy, d
 	    begin
 	        c_state <= #1 idle;
 	        cmd_ack <= #1 1'b0;
-	        dout    <= #1 1'b0;
 	        scl_oen <= #1 1'b1;
 	        sda_oen <= #1 1'b1;
+	        sda_chk <= #1 1'b0;
 	    end
-	  else if (rst)
+	  else if (rst | al)
 	    begin
 	        c_state <= #1 idle;
 	        cmd_ack <= #1 1'b0;
-	        dout    <= #1 1'b0;
 	        scl_oen <= #1 1'b1;
 	        sda_oen <= #1 1'b1;
+	        sda_chk <= #1 1'b0;
 	    end
 	  else
 	    begin
@@ -283,6 +320,7 @@ module i2c_master_bit_ctrl(clk, rst, nReset, clk_cnt, ena, cmd, cmd_ack, busy, d
 
 	                scl_oen <= #1 scl_oen; // keep SCL in same state
 	                sda_oen <= #1 sda_oen; // keep SDA in same state
+	                sda_chk <= #1 1'b0;    // don't check SDA output
 	            end
 
 	            // start
@@ -291,6 +329,7 @@ module i2c_master_bit_ctrl(clk, rst, nReset, clk_cnt, ena, cmd, cmd_ack, busy, d
 	                c_state <= #1 start_b;
 	                scl_oen <= #1 scl_oen; // keep SCL in same state
 	                sda_oen <= #1 1'b1;    // set SDA high
+	                sda_chk <= #1 1'b0;    // don't check SDA output
 	            end
 
 	            start_b:
@@ -298,6 +337,7 @@ module i2c_master_bit_ctrl(clk, rst, nReset, clk_cnt, ena, cmd, cmd_ack, busy, d
 	                c_state <= #1 start_c;
 	                scl_oen <= #1 1'b1; // set SCL high
 	                sda_oen <= #1 1'b1; // keep SDA high
+	                sda_chk <= #1 1'b0; // don't check SDA output
 	            end
 
 	            start_c:
@@ -305,6 +345,7 @@ module i2c_master_bit_ctrl(clk, rst, nReset, clk_cnt, ena, cmd, cmd_ack, busy, d
 	                c_state <= #1 start_d;
 	                scl_oen <= #1 1'b1; // keep SCL high
 	                sda_oen <= #1 1'b0; // set SDA low
+	                sda_chk <= #1 1'b0; // don't check SDA output
 	            end
 
 	            start_d:
@@ -312,6 +353,7 @@ module i2c_master_bit_ctrl(clk, rst, nReset, clk_cnt, ena, cmd, cmd_ack, busy, d
 	                c_state <= #1 start_e;
 	                scl_oen <= #1 1'b1; // keep SCL high
 	                sda_oen <= #1 1'b0; // keep SDA low
+	                sda_chk <= #1 1'b0; // don't check SDA output
 	            end
 
 	            start_e:
@@ -320,6 +362,7 @@ module i2c_master_bit_ctrl(clk, rst, nReset, clk_cnt, ena, cmd, cmd_ack, busy, d
 	                cmd_ack <= #1 1'b1;
 	                scl_oen <= #1 1'b0; // set SCL low
 	                sda_oen <= #1 1'b0; // keep SDA low
+	                sda_chk <= #1 1'b0; // don't check SDA output
 	            end
 
 	            // stop
@@ -328,6 +371,7 @@ module i2c_master_bit_ctrl(clk, rst, nReset, clk_cnt, ena, cmd, cmd_ack, busy, d
 	                c_state <= #1 stop_b;
 	                scl_oen <= #1 1'b0; // keep SCL low
 	                sda_oen <= #1 1'b0; // set SDA low
+	                sda_chk <= #1 1'b0; // don't check SDA output
 	            end
 
 	            stop_b:
@@ -335,6 +379,7 @@ module i2c_master_bit_ctrl(clk, rst, nReset, clk_cnt, ena, cmd, cmd_ack, busy, d
 	                c_state <= #1 stop_c;
 	                scl_oen <= #1 1'b1; // set SCL high
 	                sda_oen <= #1 1'b0; // keep SDA low
+	                sda_chk <= #1 1'b0; // don't check SDA output
 	            end
 
 	            stop_c:
@@ -342,6 +387,7 @@ module i2c_master_bit_ctrl(clk, rst, nReset, clk_cnt, ena, cmd, cmd_ack, busy, d
 	                c_state <= #1 stop_d;
 	                scl_oen <= #1 1'b1; // keep SCL high
 	                sda_oen <= #1 1'b0; // keep SDA low
+	                sda_chk <= #1 1'b0; // don't check SDA output
 	            end
 
 	            stop_d:
@@ -350,6 +396,7 @@ module i2c_master_bit_ctrl(clk, rst, nReset, clk_cnt, ena, cmd, cmd_ack, busy, d
 	                cmd_ack <= #1 clk_en;
 	                scl_oen <= #1 1'b1; // keep SCL high
 	                sda_oen <= #1 1'b1; // set SDA high
+	                sda_chk <= #1 1'b0; // don't check SDA output
 	            end
 
 	            // read
@@ -358,6 +405,7 @@ module i2c_master_bit_ctrl(clk, rst, nReset, clk_cnt, ena, cmd, cmd_ack, busy, d
 	                c_state <= #1 rd_b;
 	                scl_oen <= #1 1'b0; // keep SCL low
 	                sda_oen <= #1 1'b1; // tri-state SDA
+	                sda_chk <= #1 1'b0; // don't check SDA output
 	            end
 
 	            rd_b:
@@ -365,14 +413,15 @@ module i2c_master_bit_ctrl(clk, rst, nReset, clk_cnt, ena, cmd, cmd_ack, busy, d
 	                c_state <= #1 rd_c;
 	                scl_oen <= #1 1'b1; // set SCL high
 	                sda_oen <= #1 1'b1; // keep SDA tri-stated
+	                sda_chk <= #1 1'b0; // don't check SDA output
 	            end
 
 	            rd_c:
 	            begin
 	                c_state <= #1 rd_d;
-	                dout <= #1 sSDA;
 	                scl_oen <= #1 1'b1; // keep SCL high
-	                sda_oen <= #1 1'b1;
+	                sda_oen <= #1 1'b1; // keep SDA tri-stated
+	                sda_chk <= #1 1'b0; // don't check SDA output
 	            end
 
 	            rd_d:
@@ -380,7 +429,8 @@ module i2c_master_bit_ctrl(clk, rst, nReset, clk_cnt, ena, cmd, cmd_ack, busy, d
 	                c_state <= #1 idle;
 	                cmd_ack <= #1 clk_en;
 	                scl_oen <= #1 1'b0; // set SCL low
-	                sda_oen <= #1 1'b1;
+	                sda_oen <= #1 1'b1; // keep SDA tri-stated
+	                sda_chk <= #1 1'b0; // don't check SDA output
 	            end
 
 	            // write
@@ -389,6 +439,7 @@ module i2c_master_bit_ctrl(clk, rst, nReset, clk_cnt, ena, cmd, cmd_ack, busy, d
 	                c_state <= #1 wr_b;
 	                scl_oen <= #1 1'b0; // keep SCL low
 	                sda_oen <= #1 din;  // set SDA
+	                sda_chk <= #1 1'b0; // don't check SDA output (SCL low)
 	            end
 
 	            wr_b:
@@ -396,6 +447,7 @@ module i2c_master_bit_ctrl(clk, rst, nReset, clk_cnt, ena, cmd, cmd_ack, busy, d
 	                c_state <= #1 wr_c;
 	                scl_oen <= #1 1'b1; // set SCL high
 	                sda_oen <= #1 din;  // keep SDA
+	                sda_chk <= #1 1'b1; // check SDA output
 	            end
 
 	            wr_c:
@@ -403,6 +455,7 @@ module i2c_master_bit_ctrl(clk, rst, nReset, clk_cnt, ena, cmd, cmd_ack, busy, d
 	                c_state <= #1 wr_d;
 	                scl_oen <= #1 1'b1; // keep SCL high
 	                sda_oen <= #1 din;
+	                sda_chk <= #1 1'b1; // check SDA output
 	            end
 
 	            wr_d:
@@ -411,6 +464,7 @@ module i2c_master_bit_ctrl(clk, rst, nReset, clk_cnt, ena, cmd, cmd_ack, busy, d
 	                cmd_ack <= #1 1'b1;
 	                scl_oen <= #1 1'b0; // set SCL low
 	                sda_oen <= #1 din;
+	                sda_chk <= #1 1'b0; // don't check SDA output (SCL low)
 	            end
 
 	          endcase

@@ -37,28 +37,34 @@
 
 //  CVS Log
 //
-//  $Id: i2c_master_byte_ctrl.v,v 1.4 2002-11-30 22:24:40 rherveille Exp $
+//  $Id: i2c_master_byte_ctrl.v,v 1.5 2002-12-26 15:02:32 rherveille Exp $
 //
-//  $Date: 2002-11-30 22:24:40 $
-//  $Revision: 1.4 $
+//  $Date: 2002-12-26 15:02:32 $
+//  $Revision: 1.5 $
 //  $Author: rherveille $
 //  $Locker:  $
 //  $State: Exp $
 //
 // Change History:
 //               $Log: not supported by cvs2svn $
+//               Revision 1.4  2002/11/30 22:24:40  rherveille
+//               Cleaned up code
+//
 //               Revision 1.3  2001/11/05 11:59:25  rherveille
 //               Fixed wb_ack_o generation bug.
 //               Fixed bug in the byte_controller statemachine.
 //               Added headers.
 //
 
+// synopsys translate_off
 `include "timescale.v"
+// synopsys translate_on
+
 `include "i2c_master_defines.v"
 
 module i2c_master_byte_ctrl (
 	clk, rst, nReset, ena, clk_cnt, start, stop, read, write, ack_in, din,
-	cmd_ack, ack_out, dout, i2c_busy, scl_i, scl_o, scl_oen, sda_i, sda_o, sda_oen );
+	cmd_ack, ack_out, dout, i2c_busy, i2c_al, scl_i, scl_o, scl_oen, sda_i, sda_o, sda_oen );
 
 	//
 	// inputs & outputs
@@ -84,6 +90,7 @@ module i2c_master_byte_ctrl (
 	output       ack_out;
 	reg ack_out;
 	output       i2c_busy;
+	output       i2c_al;
 	output [7:0] dout;
 
 	// I2C signals
@@ -135,6 +142,7 @@ module i2c_master_byte_ctrl (
 		.cmd     ( core_cmd ),
 		.cmd_ack ( core_ack ),
 		.busy    ( i2c_busy ),
+		.al      ( i2c_al   ),
 		.din     ( core_txd ),
 		.dout    ( core_rxd ),
 		.scl_i   ( scl_i    ),
@@ -173,7 +181,7 @@ module i2c_master_byte_ctrl (
 	  else if (shift)
 	    dcnt <= #1 dcnt - 3'h1;
 
-	assign cnt_done = !(|dcnt);
+	assign cnt_done = ~(|dcnt);
 
 	//
 	// state machine
@@ -191,7 +199,7 @@ module i2c_master_byte_ctrl (
 	        c_state  <= #1 ST_IDLE;
 	        ack_out  <= #1 1'b0;
 	    end
-	  else if (rst)
+	  else if (rst | i2c_al)
 	   begin
 	       core_cmd <= #1 `I2C_CMD_NOP;
 	       core_txd <= #1 1'b0;
@@ -237,7 +245,7 @@ module i2c_master_byte_ctrl (
 	                      cmd_ack  <= #1 1'b1;
 	                  end
 
-	                ld       <= #1 1'b1;
+	                ld <= #1 1'b1;
 	            end
 
 	        ST_START:
@@ -254,7 +262,7 @@ module i2c_master_byte_ctrl (
 	                      core_cmd <= #1 `I2C_CMD_WRITE;
 	                  end
 
-	                ld       <= #1 1'b1;
+	                ld <= #1 1'b1;
 	            end
 
 	        ST_WRITE:
