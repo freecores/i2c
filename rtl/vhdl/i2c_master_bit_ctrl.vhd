@@ -37,16 +37,19 @@
 
 --  CVS Log
 --
---  $Id: i2c_master_bit_ctrl.vhd,v 1.10 2004-02-27 07:49:43 rherveille Exp $
+--  $Id: i2c_master_bit_ctrl.vhd,v 1.11 2004-05-07 11:04:00 rherveille Exp $
 --
---  $Date: 2004-02-27 07:49:43 $
---  $Revision: 1.10 $
+--  $Date: 2004-05-07 11:04:00 $
+--  $Revision: 1.11 $
 --  $Author: rherveille $
 --  $Locker:  $
 --  $State: Exp $
 --
 -- Change History:
 --               $Log: not supported by cvs2svn $
+--               Revision 1.10  2004/02/27 07:49:43  rherveille
+--               Fixed a bug in the arbitration-lost signal generation. VHDL version only.
+--
 --               Revision 1.9  2003/08/12 14:48:37  rherveille
 --               Forgot an 'end if' :-/
 --
@@ -279,6 +282,9 @@ begin
 
 
 	    -- generate arbitration lost signal
+	    -- aribitration lost when:
+	    -- 1) master drives SDA high, but the i2c bus is low
+	    -- 2) stop detected while not requested (detect during 'idle' state)
 	    gen_al: process(clk, nReset)
 	    begin
 	      if (nReset = '0') then
@@ -290,14 +296,20 @@ begin
 	          ial       <= '0';
 	        else
 	          if (clk_en = '1') then
-		    if (cmd = I2C_CMD_STOP) then
+	            if (cmd = I2C_CMD_STOP) then
 	              cmd_stop <= '1';
 	            else
 	              cmd_stop <= '0';
-		    end if;
+	            end if;
 	          end if;
 
-	          ial <= (sda_chk and not sSDA and isda_oen) or (sto_condition and not cmd_stop);
+	          if (c_state = idle) then
+	            ial <= '0';
+	          else
+	            ial <= (sto_condition and not cmd_stop);
+	          end if;
+	          ial <= ial or (sda_chk and not sSDA and isda_oen);
+
 	        end if;
 	      end if;
 	    end process gen_al;

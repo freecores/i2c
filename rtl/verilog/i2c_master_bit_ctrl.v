@@ -37,16 +37,20 @@
 
 //  CVS Log
 //
-//  $Id: i2c_master_bit_ctrl.v,v 1.10 2003-08-09 07:01:33 rherveille Exp $
+//  $Id: i2c_master_bit_ctrl.v,v 1.11 2004-05-07 11:02:26 rherveille Exp $
 //
-//  $Date: 2003-08-09 07:01:33 $
-//  $Revision: 1.10 $
+//  $Date: 2004-05-07 11:02:26 $
+//  $Revision: 1.11 $
 //  $Author: rherveille $
 //  $Locker:  $
 //  $State: Exp $
 //
 // Change History:
 //               $Log: not supported by cvs2svn $
+//               Revision 1.10  2003/08/09 07:01:33  rherveille
+//               Fixed a bug in the Arbitration Lost generation caused by delay on the (external) sda line.
+//               Fixed a potential bug in the byte controller's host-acknowledge generation.
+//
 //               Revision 1.9  2003/03/10 14:26:37  rherveille
 //               Fixed cmd_ack generation item (no bug).
 //
@@ -170,6 +174,9 @@ module i2c_master_bit_ctrl(
 //	reg [15:0] cnt = clk_cnt;   // clock divider counter (simulation)
 	reg [15:0] cnt;             // clock divider counter (synthesis)
 
+	// state machine variable
+	reg [16:0] c_state; // synopsys enum_state
+
 	//
 	// module body
 	//
@@ -292,7 +299,7 @@ module i2c_master_bit_ctrl(
 	  else if (rst)
 	    al <= #1 1'b0;
 	  else
-	    al <= #1 (sda_chk & ~sSDA & sda_oen) | (sto_condition & ~cmd_stop);
+	    al <= #1 (sda_chk & ~sSDA & sda_oen) | (|c_state & sto_condition & ~cmd_stop);
 
 
 	// generate dout signal (store SDA on rising edge of SCL)
@@ -322,8 +329,6 @@ module i2c_master_bit_ctrl(
 	parameter [16:0] wr_c    = 17'b0_1000_0000_0000_0000;
 	parameter [16:0] wr_d    = 17'b1_0000_0000_0000_0000;
 
-	reg [16:0] c_state; // synopsis enum_state
-
 	always @(posedge clk or negedge nReset)
 	  if (!nReset)
 	    begin
@@ -346,11 +351,11 @@ module i2c_master_bit_ctrl(
 	        cmd_ack   <= #1 1'b0; // default no command acknowledge + assert cmd_ack only 1clk cycle
 
 	        if (clk_en)
-	          case (c_state) // synopsis full_case parallel_case
+	          case (c_state) // synopsys full_case parallel_case
 	            // idle state
 	            idle:
 	            begin
-	                case (cmd) // synopsis full_case parallel_case
+	                case (cmd) // synopsys full_case parallel_case
 	                  `I2C_CMD_START:
 	                     c_state <= #1 start_a;
 
