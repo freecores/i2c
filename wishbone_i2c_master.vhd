@@ -5,6 +5,8 @@
 -- rev. 0.1 based on simple_i2c
 -- rev. 0.2 april 27th 2001, fixed incomplete sensitivity list on assign_dato process (thanks to Matt Oseman)
 -- rev. 0.3 may 4th 2001, fixed typo rev.0.2 txt -> txr
+-- rev. 0.4 may 8th, added some remarks, fixed some sensitivity list issues
+--
 --
 -- Changes compared to simple_i2c
 -- 1) WISHBONE interface
@@ -642,7 +644,8 @@ architecture structural of bit_ctrl is
 
 	signal txd : std_logic;			-- transmit bit
 	signal clk_en, slave_wait :std_logic;		-- clock generation signals
-	signal cnt : unsigned(15 downto 0) := clk_cnt;	-- clock divider counter
+--	signal cnt : unsigned(15 downto 0) := clk_cnt;	-- clock divider counter (simulation)
+	signal cnt : unsigned(15 downto 0);             -- clock divider counter (synthesis)
 begin
 	-- synchronize SCL and SDA inputs
 	synch_SCL_SDA: process(clk)
@@ -702,7 +705,7 @@ begin
 		end process det_sta_sto;
 
 		-- generate bus busy signal
-		gen_busy: process(clk)
+		gen_busy: process(clk, nReset)
 		begin
 			if (nReset = '0') then
 				ibusy <= '0';
@@ -721,7 +724,7 @@ begin
 
 
 	-- generate statemachine
-	nxt_state_decoder : process (clk, nReset, state, cmd, SDAin)
+	nxt_state_decoder : process (clk, nReset, state, cmd)
 		variable nxt_state : cmds;
 		variable icmd_ack, store_sda : std_logic;
 		variable itxd : std_logic;
