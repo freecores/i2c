@@ -37,10 +37,10 @@
 
 //  CVS Log
 //
-//  $Id: wb_master_model.v,v 1.3 2004-02-28 15:32:55 rherveille Exp $
+//  $Id: wb_master_model.v,v 1.4 2004-02-28 15:40:42 rherveille Exp $
 //
-//  $Date: 2004-02-28 15:32:55 $
-//  $Revision: 1.3 $
+//  $Date: 2004-02-28 15:40:42 $
+//  $Revision: 1.4 $
 //  $Author: rherveille $
 //  $Locker:  $
 //  $State: Exp $
@@ -54,27 +54,27 @@ module wb_master_model(clk, rst, adr, din, dout, cyc, stb, we, sel, ack, err, rt
 parameter dwidth = 32;
 parameter awidth = 32;
 
-input               clk, rst;
-output [awidth:1]   adr;
-input  [dwidth:1]   din;
-output [dwidth:1]   dout;
-output              cyc, stb;
-output              we;
-output [dwidth/8:1] sel;
-input               ack, err, rty;
+input                  clk, rst;
+output [awidth   -1:0]	adr;
+input  [dwidth   -1:0]	din;
+output [dwidth   -1:0]	dout;
+output                 cyc, stb;
+output       	        	we;
+output [dwidth/8 -1:0] sel;
+input		                ack, err, rty;
 
 ////////////////////////////////////////////////////////////////////
 //
 // Local Wires
 //
 
-reg [awidth:1]   adr;
-reg [dwidth:1]   dout;
-reg              cyc, stb;
-reg              we;
-reg [dwidth/8:1] sel;
+reg	[awidth   -1:0]	adr;
+reg	[dwidth   -1:0]	dout;
+reg		               cyc, stb;
+reg		               we;
+reg [dwidth/8 -1:0] sel;
 
-reg [dwidth:1]   q;
+reg [dwidth   -1:0] q;
 
 ////////////////////////////////////////////////////////////////////
 //
@@ -104,8 +104,8 @@ task wb_write;
 	input   delay;
 	integer delay;
 
-	input	[awidth:1] a;
-	input	[dwidth:1] d;
+	input	[awidth -1:0]	a;
+	input	[dwidth -1:0]	d;
 
 	begin
 
@@ -123,7 +123,7 @@ task wb_write;
 		@(posedge clk);
 
 		// wait for acknowledge from slave
-		while(~ack) @(posedge clk);
+		while(~ack)	@(posedge clk);
 
 		// negate wishbone signals
 		#1;
@@ -146,8 +146,8 @@ task wb_read;
 	input   delay;
 	integer delay;
 
-	input   [awidth:1] a;
-	output  [dwidth:1] d;
+	input	 [awidth -1:0]	a;
+	output	[dwidth -1:0]	d;
 
 	begin
 
@@ -165,7 +165,7 @@ task wb_read;
 		@(posedge clk);
 
 		// wait for acknowledge from slave
-		while(~ack) @(posedge clk);
+		while(~ack)	@(posedge clk);
 
 		// negate wishbone signals
 		#1;
@@ -189,14 +189,14 @@ task wb_cmp;
 	input   delay;
 	integer delay;
 
-	input [awidth:1] a;
-	input [dwidth:1] d_exp;
+	input [awidth -1:0]	a;
+	input	[dwidth -1:0]	d_exp;
 
 	begin
-	  wb_read (delay, a, q);
+		wb_read (delay, a, q);
 
-	  if (d_exp !== q)
-	    $display("Data compare error. Received %h, expected %h at time %t", q, d_exp, $time);
+		if (d_exp !== q)
+			$display("Data compare error. Received %h, expected %h at time %t", q, d_exp, $time);
 	end
 endtask
 
