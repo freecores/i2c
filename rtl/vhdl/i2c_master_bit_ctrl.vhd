@@ -37,16 +37,19 @@
 
 --  CVS Log
 --
---  $Id: i2c_master_bit_ctrl.vhd,v 1.11 2004-05-07 11:04:00 rherveille Exp $
+--  $Id: i2c_master_bit_ctrl.vhd,v 1.12 2004-05-07 11:53:31 rherveille Exp $
 --
---  $Date: 2004-05-07 11:04:00 $
---  $Revision: 1.11 $
+--  $Date: 2004-05-07 11:53:31 $
+--  $Revision: 1.12 $
 --  $Author: rherveille $
 --  $Locker:  $
 --  $State: Exp $
 --
 -- Change History:
 --               $Log: not supported by cvs2svn $
+--               Revision 1.11  2004/05/07 11:04:00  rherveille
+--               Fixed a bug where the core would signal an arbitration lost (AL bit set), when another master controls the bus and the other master generates a STOP bit.
+--
 --               Revision 1.10  2004/02/27 07:49:43  rherveille
 --               Fixed a bug in the arbitration-lost signal generation. VHDL version only.
 --
@@ -304,11 +307,10 @@ begin
 	          end if;
 
 	          if (c_state = idle) then
-	            ial <= '0';
+	            ial <= (sda_chk and not sSDA and isda_oen);
 	          else
-	            ial <= (sto_condition and not cmd_stop);
+	            ial <= (sda_chk and not sSDA and isda_oen) or (sto_condition and not cmd_stop);
 	          end if;
-	          ial <= ial or (sda_chk and not sSDA and isda_oen);
 
 	        end if;
 	      end if;
