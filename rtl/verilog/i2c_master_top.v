@@ -37,10 +37,10 @@
 
 //  CVS Log
 //
-//  $Id: i2c_master_top.v,v 1.4 2001-11-05 11:59:25 rherveille Exp $
+//  $Id: i2c_master_top.v,v 1.5 2001-11-10 10:52:55 rherveille Exp $
 //
-//  $Date: 2001-11-05 11:59:25 $
-//  $Revision: 1.4 $
+//  $Date: 2001-11-10 10:52:55 $
+//  $Revision: 1.5 $
 //  $Author: rherveille $
 //  $Locker:  $
 //  $State: Exp $
@@ -145,14 +145,14 @@ module i2c_master_top(
 	always@(posedge wb_clk_i or negedge rst_i)
 		if (!rst_i)
 			begin
-				prer <= #1 16'h0;
+				prer <= #1 16'hffff;
 				ctr  <= #1  8'h0;
 				txr  <= #1  8'h0;
 				cr   <= #1  8'h0;
 			end
 		else if (wb_rst_i)
 			begin
-				prer <= #1 16'h0;
+				prer <= #1 16'hffff;
 				ctr  <= #1  8'h0;
 				txr  <= #1  8'h0;
 				cr   <= #1  8'h0;
@@ -257,6 +257,7 @@ module i2c_master_top(
 		assign sr[0]   = irq_flag;
 
 endmodule
+
 
 
 

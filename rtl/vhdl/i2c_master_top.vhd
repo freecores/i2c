@@ -37,10 +37,10 @@
 
 --  CVS Log
 --
---  $Id: i2c_master_top.vhd,v 1.1 2001-11-05 12:02:33 rherveille Exp $
+--  $Id: i2c_master_top.vhd,v 1.2 2001-11-10 10:52:44 rherveille Exp $
 --
---  $Date: 2001-11-05 12:02:33 $
---  $Revision: 1.1 $
+--  $Date: 2001-11-10 10:52:44 $
+--  $Revision: 1.2 $
 --  $Author: rherveille $
 --  $Locker:  $
 --  $State: Exp $
@@ -200,13 +200,13 @@ begin
 	regs_block: process(rst_i, wb_clk_i)
 	begin
 		if (rst_i = '0') then
-			prer <= (others => '0') after Tcq;
+			prer <= (others => '1') after Tcq;
 			ctr  <= (others => '0') after Tcq;
 			txr  <= (others => '0') after Tcq;
 			cr   <= (others => '0') after Tcq;
 		elsif (wb_clk_i'event and wb_clk_i = '1') then
 			if (wb_rst_i = '1') then
-				prer <= (others => '0') after Tcq;
+				prer <= (others => '1') after Tcq;
 				ctr  <= (others => '0') after Tcq;
 				txr  <= (others => '0') after Tcq;
 				cr   <= (others => '0') after Tcq;
@@ -334,9 +334,4 @@ begin
 	end block;
 
 end architecture structural;
-
-
-
-
-
 
