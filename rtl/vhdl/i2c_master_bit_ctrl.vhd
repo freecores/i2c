@@ -37,16 +37,19 @@
 
 --  CVS Log
 --
---  $Id: i2c_master_bit_ctrl.vhd,v 1.9 2003-08-12 14:48:37 rherveille Exp $
+--  $Id: i2c_master_bit_ctrl.vhd,v 1.10 2004-02-27 07:49:43 rherveille Exp $
 --
---  $Date: 2003-08-12 14:48:37 $
---  $Revision: 1.9 $
+--  $Date: 2004-02-27 07:49:43 $
+--  $Revision: 1.10 $
 --  $Author: rherveille $
 --  $Locker:  $
 --  $State: Exp $
 --
 -- Change History:
 --               $Log: not supported by cvs2svn $
+--               Revision 1.9  2003/08/12 14:48:37  rherveille
+--               Forgot an 'end if' :-/
+--
 --               Revision 1.8  2003/08/09 07:01:13  rherveille
 --               Fixed a bug in the Arbitration Lost generation caused by delay on the (external) sda line.
 --               Fixed a potential bug in the byte controller's host-acknowledge generation.
@@ -286,10 +289,12 @@ begin
 	          cmd_stop  <= '0';
 	          ial       <= '0';
 	        else
-	          if (clk_en = '1' and cmd = I2C_CMD_STOP) then
-	            cmd_stop <= '1';
-	          else
-	            cmd_stop <= '0';
+	          if (clk_en = '1') then
+		    if (cmd = I2C_CMD_STOP) then
+	              cmd_stop <= '1';
+	            else
+	              cmd_stop <= '0';
+		    end if;
 	          end if;
 
 	          ial <= (sda_chk and not sSDA and isda_oen) or (sto_condition and not cmd_stop);
