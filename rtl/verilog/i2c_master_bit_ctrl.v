@@ -37,16 +37,19 @@
 
 //  CVS Log
 //
-//  $Id: i2c_master_bit_ctrl.v,v 1.11 2004-05-07 11:02:26 rherveille Exp $
+//  $Id: i2c_master_bit_ctrl.v,v 1.12 2006-09-04 09:08:13 rherveille Exp $
 //
-//  $Date: 2004-05-07 11:02:26 $
-//  $Revision: 1.11 $
+//  $Date: 2006-09-04 09:08:13 $
+//  $Revision: 1.12 $
 //  $Author: rherveille $
 //  $Locker:  $
 //  $State: Exp $
 //
 // Change History:
 //               $Log: not supported by cvs2svn $
+//               Revision 1.11  2004/05/07 11:02:26  rherveille
+//               Fixed a bug where the core would signal an arbitration lost (AL bit set), when another master controls the bus and the other master generates a STOP bit.
+//
 //               Revision 1.10  2003/08/09 07:01:33  rherveille
 //               Fixed a bug in the Arbitration Lost generation caused by delay on the (external) sda line.
 //               Fixed a potential bug in the byte controller's host-acknowledge generation.
@@ -201,20 +204,19 @@ module i2c_master_bit_ctrl(
 	        cnt    <= #1 16'h0;
 	        clk_en <= #1 1'b1;
 	    end
-	  else if ( ~|cnt || ~ena)
-	    if (~slave_wait)
-	      begin
-	          cnt    <= #1 clk_cnt;
-	          clk_en <= #1 1'b1;
-	      end
-	    else
-	      begin
-	          cnt    <= #1 cnt;
-	          clk_en <= #1 1'b0;
-	      end
+	  else if ( ~|cnt || !ena)
+	    begin
+	        cnt    <= #1 clk_cnt;
+	        clk_en <= #1 1'b1;
+	    end
+	  else if (slave_wait)
+	    begin
+	        cnt    <= #1 cnt;
+	        clk_en <= #1 1'b0;    
+	    end
 	  else
 	    begin
-                cnt    <= #1 cnt - 16'h1;
+	        cnt    <= #1 cnt - 16'h1;
 	        clk_en <= #1 1'b0;
 	    end
 
