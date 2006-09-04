@@ -37,16 +37,19 @@
 
 //  CVS Log
 //
-//  $Id: tst_bench_top.v,v 1.7 2005-02-27 09:24:18 rherveille Exp $
+//  $Id: tst_bench_top.v,v 1.8 2006-09-04 09:08:51 rherveille Exp $
 //
-//  $Date: 2005-02-27 09:24:18 $
-//  $Revision: 1.7 $
+//  $Date: 2006-09-04 09:08:51 $
+//  $Revision: 1.8 $
 //  $Author: rherveille $
 //  $Locker:  $
 //  $State: Exp $
 //
 // Change History:
 //               $Log: not supported by cvs2svn $
+//               Revision 1.7  2005/02/27 09:24:18  rherveille
+//               Fixed scl, sda delay.
+//
 //               Revision 1.6  2004/02/28 15:40:42  rherveille
 //               *** empty log message ***
 //
@@ -271,6 +274,11 @@ module tst_bench_top();
 	      u0.wb_write(1, TXR,     8'ha5); // present data
 	      u0.wb_write(0, CR,      8'h10); // set command (write)
 	      $display("status: %t write data a5", $time);
+
+while (scl) #1;
+force scl= 1'b0;
+#100000;
+release scl;
 
 	      // check tip bit
 	      u0.wb_read(1, SR, q);

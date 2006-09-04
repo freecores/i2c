@@ -36,16 +36,20 @@
 
 //  CVS Log
 //
-//  $Id: i2c_slave_model.v,v 1.6 2005-02-28 11:33:48 rherveille Exp $
+//  $Id: i2c_slave_model.v,v 1.7 2006-09-04 09:08:51 rherveille Exp $
 //
-//  $Date: 2005-02-28 11:33:48 $
-//  $Revision: 1.6 $
+//  $Date: 2006-09-04 09:08:51 $
+//  $Revision: 1.7 $
 //  $Author: rherveille $
 //  $Locker:  $
 //  $State: Exp $
 //
 // Change History:
 //               $Log: not supported by cvs2svn $
+//               Revision 1.6  2005/02/28 11:33:48  rherveille
+//               Fixed Tsu:sta timing check.
+//               Added Thd:sta timing check.
+//
 //               Revision 1.5  2003/12/05 11:05:19  rherveille
 //               Fixed slave address MSB='1' bug
 //
@@ -287,7 +291,7 @@ module i2c_slave_model (scl, sda);
 	                  ld <= #1 1'b1;
 
 	                  if(rw)
-	                    if(sda) // read operation && master send NACK
+	                    if(sr[0]) // read operation && master send NACK
 	                      begin
 	                          state <= #1 idle;
 	                          sda_o <= #1 1'b1;
