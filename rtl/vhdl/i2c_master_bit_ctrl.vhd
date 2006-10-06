@@ -37,16 +37,19 @@
 
 --  CVS Log
 --
---  $Id: i2c_master_bit_ctrl.vhd,v 1.12 2004-05-07 11:53:31 rherveille Exp $
+--  $Id: i2c_master_bit_ctrl.vhd,v 1.13 2006-10-06 10:48:24 rherveille Exp $
 --
---  $Date: 2004-05-07 11:53:31 $
---  $Revision: 1.12 $
+--  $Date: 2006-10-06 10:48:24 $
+--  $Revision: 1.13 $
 --  $Author: rherveille $
 --  $Locker:  $
 --  $State: Exp $
 --
 -- Change History:
 --               $Log: not supported by cvs2svn $
+--               Revision 1.12  2004/05/07 11:53:31  rherveille
+--               Fixed previous fix :) Made a variable vs signal mistake.
+--
 --               Revision 1.11  2004/05/07 11:04:00  rherveille
 --               Fixed a bug where the core would signal an arbitration lost (AL bit set), when another master controls the bus and the other master generates a STOP bit.
 --
@@ -196,23 +199,17 @@ begin
 	      if (rst = '1') then
 	        cnt    <= (others => '0');
 	        clk_en <= '1';
+	      elsif ( (cnt = 0) or (ena = '0') ) then
+	        cnt    <= clk_cnt;
+	        clk_en <= '1';
+	      elsif (slave_wait = '1') then
+	        cnt    <= cnt;
+	        clk_en <= '0';
 	      else
-	        if ( (cnt = 0) or (ena = '0') ) then
-	          if (slave_wait = '0') then
-	            cnt    <= clk_cnt;
-	            clk_en <= '1';
-	          else
-	            cnt    <= cnt;
-	            clk_en <= '0';
-	          end if;
-	        else
-	          if (slave_wait = '0') then
-	            cnt <= cnt -1;
-	          end if;
-	          clk_en <= '0';
-	        end if;
-	      end if;
-	    end if;
+	        cnt    <= cnt -1;
+	        clk_en <= '0';
+	      end if
+	    end if
 	end process gen_clken;
 
 
