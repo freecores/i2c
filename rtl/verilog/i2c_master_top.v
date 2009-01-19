@@ -37,16 +37,20 @@
 
 //  CVS Log
 //
-//  $Id: i2c_master_top.v,v 1.11 2005-02-27 09:26:24 rherveille Exp $
+//  $Id: i2c_master_top.v,v 1.12 2009-01-19 20:29:26 rherveille Exp $
 //
-//  $Date: 2005-02-27 09:26:24 $
-//  $Revision: 1.11 $
+//  $Date: 2009-01-19 20:29:26 $
+//  $Revision: 1.12 $
 //  $Author: rherveille $
 //  $Locker:  $
 //  $State: Exp $
 //
 // Change History:
 //               $Log: not supported by cvs2svn $
+//               Revision 1.11  2005/02/27 09:26:24  rherveille
+//               Fixed register overwrite issue.
+//               Removed full_case pragma, replaced it by a default statement.
+//
 //               Revision 1.10  2003/09/01 10:34:38  rherveille
 //               Fix a blocking vs. non-blocking error in the wb_dat output mux.
 //
@@ -158,7 +162,7 @@ module i2c_master_top(
 	// assign DAT_O
 	always @(posedge wb_clk_i)
 	begin
-	  case (wb_adr_i) // synopsis parallel_case
+	  case (wb_adr_i) // synopsys parallel_case
 	    3'b000: wb_dat_o <= #1 prer[ 7:0];
 	    3'b001: wb_dat_o <= #1 prer[15:8];
 	    3'b010: wb_dat_o <= #1 ctr;
@@ -186,7 +190,7 @@ module i2c_master_top(
 	    end
 	  else
 	    if (wb_wacc)
-	      case (wb_adr_i) // synopsis parallel_case
+	      case (wb_adr_i) // synopsys parallel_case
 	         3'b000 : prer [ 7:0] <= #1 wb_dat_i;
 	         3'b001 : prer [15:8] <= #1 wb_dat_i;
 	         3'b010 : ctr         <= #1 wb_dat_i;
@@ -196,7 +200,7 @@ module i2c_master_top(
 
 	// generate command register (special case)
 	always @(posedge wb_clk_i or negedge rst_i)
-	  if (~rst_i)
+	  if (!rst_i)
 	    cr <= #1 8'h0;
 	  else if (wb_rst_i)
 	    cr <= #1 8'h0;
@@ -211,7 +215,7 @@ module i2c_master_top(
 	          cr[7:4] <= #1 4'h0;           // clear command bits when done
 	                                        // or when aribitration lost
 	        cr[2:1] <= #1 2'b0;             // reserved bits
-	        cr[0]   <= #1 2'b0;             // clear IRQ_ACK bit
+	        cr[0]   <= #1 1'b0;             // clear IRQ_ACK bit
 	    end
 
 

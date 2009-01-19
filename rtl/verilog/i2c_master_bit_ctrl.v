@@ -37,16 +37,20 @@
 
 //  CVS Log
 //
-//  $Id: i2c_master_bit_ctrl.v,v 1.12 2006-09-04 09:08:13 rherveille Exp $
+//  $Id: i2c_master_bit_ctrl.v,v 1.13 2009-01-19 20:29:26 rherveille Exp $
 //
-//  $Date: 2006-09-04 09:08:13 $
-//  $Revision: 1.12 $
+//  $Date: 2009-01-19 20:29:26 $
+//  $Revision: 1.13 $
 //  $Author: rherveille $
 //  $Locker:  $
 //  $State: Exp $
 //
 // Change History:
 //               $Log: not supported by cvs2svn $
+//               Revision 1.12  2006/09/04 09:08:13  rherveille
+//               fixed short scl high pulse after clock stretch
+//               fixed slave model not returning correct '(n)ack' signal
+//
 //               Revision 1.11  2004/05/07 11:02:26  rherveille
 //               Fixed a bug where the core would signal an arbitration lost (AL bit set), when another master controls the bus and the other master generates a STOP bit.
 //
@@ -178,7 +182,7 @@ module i2c_master_bit_ctrl(
 	reg [15:0] cnt;             // clock divider counter (synthesis)
 
 	// state machine variable
-	reg [16:0] c_state; // synopsys enum_state
+	reg [17:0] c_state; // synopsys enum_state
 
 	//
 	// module body
@@ -312,24 +316,24 @@ module i2c_master_bit_ctrl(
 	// generate statemachine
 
 	// nxt_state decoder
-	parameter [16:0] idle    = 17'b0_0000_0000_0000_0000;
-	parameter [16:0] start_a = 17'b0_0000_0000_0000_0001;
-	parameter [16:0] start_b = 17'b0_0000_0000_0000_0010;
-	parameter [16:0] start_c = 17'b0_0000_0000_0000_0100;
-	parameter [16:0] start_d = 17'b0_0000_0000_0000_1000;
-	parameter [16:0] start_e = 17'b0_0000_0000_0001_0000;
-	parameter [16:0] stop_a  = 17'b0_0000_0000_0010_0000;
-	parameter [16:0] stop_b  = 17'b0_0000_0000_0100_0000;
-	parameter [16:0] stop_c  = 17'b0_0000_0000_1000_0000;
-	parameter [16:0] stop_d  = 17'b0_0000_0001_0000_0000;
-	parameter [16:0] rd_a    = 17'b0_0000_0010_0000_0000;
-	parameter [16:0] rd_b    = 17'b0_0000_0100_0000_0000;
-	parameter [16:0] rd_c    = 17'b0_0000_1000_0000_0000;
-	parameter [16:0] rd_d    = 17'b0_0001_0000_0000_0000;
-	parameter [16:0] wr_a    = 17'b0_0010_0000_0000_0000;
-	parameter [16:0] wr_b    = 17'b0_0100_0000_0000_0000;
-	parameter [16:0] wr_c    = 17'b0_1000_0000_0000_0000;
-	parameter [16:0] wr_d    = 17'b1_0000_0000_0000_0000;
+	parameter [17:0] idle    = 18'b0_0000_0000_0000_0000;
+	parameter [17:0] start_a = 18'b0_0000_0000_0000_0001;
+	parameter [17:0] start_b = 18'b0_0000_0000_0000_0010;
+	parameter [17:0] start_c = 18'b0_0000_0000_0000_0100;
+	parameter [17:0] start_d = 18'b0_0000_0000_0000_1000;
+	parameter [17:0] start_e = 18'b0_0000_0000_0001_0000;
+	parameter [17:0] stop_a  = 18'b0_0000_0000_0010_0000;
+	parameter [17:0] stop_b  = 18'b0_0000_0000_0100_0000;
+	parameter [17:0] stop_c  = 18'b0_0000_0000_1000_0000;
+	parameter [17:0] stop_d  = 18'b0_0000_0001_0000_0000;
+	parameter [17:0] rd_a    = 18'b0_0000_0010_0000_0000;
+	parameter [17:0] rd_b    = 18'b0_0000_0100_0000_0000;
+	parameter [17:0] rd_c    = 18'b0_0000_1000_0000_0000;
+	parameter [17:0] rd_d    = 18'b0_0001_0000_0000_0000;
+	parameter [17:0] wr_a    = 18'b0_0010_0000_0000_0000;
+	parameter [17:0] wr_b    = 18'b0_0100_0000_0000_0000;
+	parameter [17:0] wr_c    = 18'b0_1000_0000_0000_0000;
+	parameter [17:0] wr_d    = 18'b1_0000_0000_0000_0000;
 
 	always @(posedge clk or negedge nReset)
 	  if (!nReset)

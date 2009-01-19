@@ -37,16 +37,19 @@
 
 //  CVS Log
 //
-//  $Id: i2c_master_byte_ctrl.v,v 1.7 2004-02-18 11:40:46 rherveille Exp $
+//  $Id: i2c_master_byte_ctrl.v,v 1.8 2009-01-19 20:29:26 rherveille Exp $
 //
-//  $Date: 2004-02-18 11:40:46 $
-//  $Revision: 1.7 $
+//  $Date: 2009-01-19 20:29:26 $
+//  $Revision: 1.8 $
 //  $Author: rherveille $
 //  $Locker:  $
 //  $State: Exp $
 //
 // Change History:
 //               $Log: not supported by cvs2svn $
+//               Revision 1.7  2004/02/18 11:40:46  rherveille
+//               Fixed a potential bug in the statemachine. During a 'stop' 2 cmd_ack signals were generated. Possibly canceling a new start command.
+//
 //               Revision 1.6  2003/08/09 07:01:33  rherveille
 //               Fixed a bug in the Arbitration Lost generation caused by delay on the (external) sda line.
 //               Fixed a potential bug in the byte controller's host-acknowledge generation.
@@ -193,7 +196,7 @@ module i2c_master_byte_ctrl (
 	//
 	// state machine
 	//
-	reg [4:0] c_state; // synopsis enum_state
+	reg [4:0] c_state; // synopsys enum_state
 
 	always @(posedge clk or negedge nReset)
 	  if (!nReset)
