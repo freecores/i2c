@@ -37,16 +37,19 @@
 
 --  CVS Log
 --
---  $Id: i2c_master_top.vhd,v 1.7 2004-03-14 10:17:03 rherveille Exp $
+--  $Id: i2c_master_top.vhd,v 1.8 2009-01-20 10:38:45 rherveille Exp $
 --
---  $Date: 2004-03-14 10:17:03 $
---  $Revision: 1.7 $
+--  $Date: 2009-01-20 10:38:45 $
+--  $Revision: 1.8 $
 --  $Author: rherveille $
 --  $Locker:  $
 --  $State: Exp $
 --
 -- Change History:
 --               $Log: not supported by cvs2svn $
+--               Revision 1.7  2004/03/14 10:17:03  rherveille
+--               Fixed simulation issue when writing to CR register
+--
 --               Revision 1.6  2003/08/09 07:01:13  rherveille
 --               Fixed a bug in the Arbitration Lost generation caused by delay on the (external) sda line.
 --               Fixed a potential bug in the byte controller's host-acknowledge generation.
@@ -78,7 +81,7 @@ entity i2c_master_top is
 		wb_clk_i  : in  std_logic;                    -- master clock input
 		wb_rst_i  : in  std_logic := '0';             -- synchronous active high reset
 		arst_i    : in  std_logic := not ARST_LVL;    -- asynchronous reset
-		wb_adr_i  : in  unsigned(2 downto 0);         -- lower address bits
+		wb_adr_i  : in  std_logic_vector(2 downto 0); -- lower address bits
 		wb_dat_i  : in  std_logic_vector(7 downto 0); -- Databus input
 		wb_dat_o  : out std_logic_vector(7 downto 0); -- Databus output
 		wb_we_i   : in  std_logic;	              -- Write enable input
@@ -246,7 +249,7 @@ begin
 	        if (wb_rst_i = '1') then
 	            cr <= (others => '0');
 	        elsif (wb_wacc = '1') then
-	            if ( (core_en = '1') and (wb_adr_i = 4) ) then
+	            if ( (core_en = '1') and (wb_adr_i = "100") ) then
 	                -- only take new commands when i2c core enabled
 	                -- pending commands are finished
 	                cr <= wb_dat_i;
