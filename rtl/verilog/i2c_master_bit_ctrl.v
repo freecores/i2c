@@ -37,16 +37,22 @@
 
 //  CVS Log
 //
-//  $Id: i2c_master_bit_ctrl.v,v 1.13 2009-01-19 20:29:26 rherveille Exp $
+//  $Id: i2c_master_bit_ctrl.v,v 1.14 2009-01-20 10:25:29 rherveille Exp $
 //
-//  $Date: 2009-01-19 20:29:26 $
-//  $Revision: 1.13 $
+//  $Date: 2009-01-20 10:25:29 $
+//  $Revision: 1.14 $
 //  $Author: rherveille $
 //  $Locker:  $
 //  $State: Exp $
 //
 // Change History:
 //               $Log: not supported by cvs2svn $
+//               Revision 1.13  2009/01/19 20:29:26  rherveille
+//               Fixed synopsys miss spell (synopsis)
+//               Fixed cr[0] register width
+//               Fixed ! usage instead of ~
+//               Fixed bit controller parameter width to 18bits
+//
 //               Revision 1.12  2006/09/04 09:08:13  rherveille
 //               fixed short scl high pulse after clock stretch
 //               fixed slave model not returning correct '(n)ack' signal
@@ -174,10 +180,11 @@ module i2c_master_bit_ctrl(
 	//
 
 	reg sSCL, sSDA;             // synchronized SCL and SDA inputs
+	reg dSCL, dSDA;             // delayed versions of sSCL and sSDA
 	reg dscl_oen;               // delayed scl_oen
 	reg sda_chk;                // check SDA output (Multi-master arbitration)
 	reg clk_en;                 // clock generation signals
-	wire slave_wait;
+	reg slave_wait;             // slave inserts wait states
 //	reg [15:0] cnt = clk_cnt;   // clock divider counter (simulation)
 	reg [15:0] cnt;             // clock divider counter (synthesis)
 
@@ -193,8 +200,15 @@ module i2c_master_bit_ctrl(
 	always @(posedge clk)
 	  dscl_oen <= #1 scl_oen;
 
-	assign slave_wait = dscl_oen && !sSCL;
+	// slave_wait is asserted when master wants to drive SCL high, but the slave (another master) pulls it low
+	// slave_wait remains asserted until the slave (other master) releases SCL
+	always @(posedge clk or negedge nReset)
+	  if (!nReset) slave_wait <= 1'b0;
+	  else         slave_wait = (scl_oen & ~dscl_oen & ~sSCL) | (slave_wait & ~sSCL);
 
+	// master drives SCL high, but another master pulls it low
+	// master start counting down its low cycle now (clock synchronization)
+	wire scl_sync   = dSCL & ~sSCL & scl_oen;
 
 	// generate clk enable signal
 	always @(posedge clk or negedge nReset)
@@ -208,7 +222,7 @@ module i2c_master_bit_ctrl(
 	        cnt    <= #1 16'h0;
 	        clk_en <= #1 1'b1;
 	    end
-	  else if ( ~|cnt || !ena)
+	  else if ( ~|cnt || !ena || scl_sync)
 	    begin
 	        cnt    <= #1 clk_cnt;
 	        clk_en <= #1 1'b1;
@@ -226,7 +240,6 @@ module i2c_master_bit_ctrl(
 
 
 	// generate bus status controller
-	reg dSCL, dSDA;
 	reg sta_condition;
 	reg sto_condition;
 
