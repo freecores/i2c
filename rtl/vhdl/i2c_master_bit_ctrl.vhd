@@ -37,16 +37,19 @@
 
 --  CVS Log
 --
---  $Id: i2c_master_bit_ctrl.vhd,v 1.14 2006-10-11 12:10:13 rherveille Exp $
+--  $Id: i2c_master_bit_ctrl.vhd,v 1.15 2009-01-20 10:34:51 rherveille Exp $
 --
---  $Date: 2006-10-11 12:10:13 $
---  $Revision: 1.14 $
+--  $Date: 2009-01-20 10:34:51 $
+--  $Revision: 1.15 $
 --  $Author: rherveille $
 --  $Locker:  $
 --  $State: Exp $
 --
 -- Change History:
 --               $Log: not supported by cvs2svn $
+--               Revision 1.14  2006/10/11 12:10:13  rherveille
+--               Added missing semicolons ';' on endif
+--
 --               Revision 1.13  2006/10/06 10:48:24  rherveille
 --               fixed short scl high pulse after clock stretch
 --
@@ -172,12 +175,14 @@ architecture structural of i2c_master_bit_ctrl is
 	                stop_a, stop_b, stop_c, stop_d, rd_a, rd_b, rd_c, rd_d, wr_a, wr_b, wr_c, wr_d);
 	signal c_state : states;
 
-	signal iscl_oen, isda_oen : std_logic;          -- internal I2C lines
-	signal sda_chk            : std_logic;          -- check SDA status (multi-master arbitration)
-	signal dscl_oen           : std_logic;          -- delayed scl_oen signals
-	signal sSCL, sSDA         : std_logic;          -- synchronized SCL and SDA inputs
-	signal clk_en, slave_wait : std_logic;          -- clock generation signals
-	signal ial                : std_logic;          -- internal arbitration lost signal
+	signal iscl_oen, isda_oen   : std_logic;        -- internal I2C lines
+	signal sda_chk              : std_logic;        -- check SDA status (multi-master arbitration)
+	signal dscl_oen             : std_logic;        -- delayed scl_oen signals
+	signal sSCL, sSDA           : std_logic;        -- synchronized SCL and SDA inputs
+	signal dSCL, dSDA           : std_logic;        -- delayed versions ofsSCL and sSDA
+	signal clk_en               : std_logic;        -- statemachine clock enable
+        signal scl_sync, slave_wait : std_logic;        -- clock generation signals
+	signal ial                  : std_logic;        -- internal arbitration lost signal
 --	signal cnt : unsigned(15 downto 0) := clk_cnt;  -- clock divider counter (simulation)
 	signal cnt : unsigned(15 downto 0);             -- clock divider counter (synthesis)
 
@@ -190,7 +195,21 @@ begin
 	      dscl_oen <= iscl_oen;
 	    end if;
 	end process;
-	slave_wait <= dscl_oen and not sSCL;
+
+	-- slave_wait is asserted when master wants to drive SCL high, but the slave (another master) pulls it low
+	-- slave_wait remains asserted until the slave (other master) releases SCL
+	process (clk, nReset)
+	begin
+	    if (nReset = '0') then
+	      slave_wait <= '0';
+	    else
+	      slave_wait <= (scl_oen and not dscl_oen and not sSCL) or (slave_wait and not sSCL);
+	    end if;
+	end process;
+
+	-- master drives SCL high, but another master pulls it low
+	-- master start counting down its low cycle now (clock synchronization)
+	scl_sync <= dSCL and not sSCL and scl_oen;
 
 	-- generate clk enable signal
 	gen_clken: process(clk, nReset)
@@ -202,7 +221,7 @@ begin
 	      if (rst = '1') then
 	        cnt    <= (others => '0');
 	        clk_en <= '1';
-	      elsif ( (cnt = 0) or (ena = '0') ) then
+	      elsif ( (cnt = 0) or (ena = '0') or (scl_sync = '1') ) then
 	        cnt    <= clk_cnt;
 	        clk_en <= '1';
 	      elsif (slave_wait = '1') then
@@ -218,7 +237,6 @@ begin
 
 	-- generate bus status controller
 	bus_status_ctrl: block
-	  signal dSCL, dSDA          : std_logic;  -- delayes sSCL and sSDA
 	  signal sta_condition       : std_logic;  -- start detected
 	  signal sto_condition       : std_logic;  -- stop detected
 	  signal cmd_stop            : std_logic;  -- STOP command
