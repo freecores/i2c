@@ -37,16 +37,19 @@
 
 --  CVS Log
 --
---  $Id: i2c_master_bit_ctrl.vhd,v 1.16 2009-01-20 20:40:36 rherveille Exp $
+--  $Id: i2c_master_bit_ctrl.vhd,v 1.17 2009-02-04 20:17:34 rherveille Exp $
 --
---  $Date: 2009-01-20 20:40:36 $
---  $Revision: 1.16 $
+--  $Date: 2009-02-04 20:17:34 $
+--  $Revision: 1.17 $
 --  $Author: rherveille $
 --  $Locker:  $
 --  $State: Exp $
 --
 -- Change History:
 --               $Log: not supported by cvs2svn $
+--               Revision 1.16  2009/01/20 20:40:36  rherveille
+--               Fixed type iscl_oen instead of scl_oen
+--
 --               Revision 1.15  2009/01/20 10:34:51  rherveille
 --               Added SCL clock synchronization logic
 --               Fixed slave_wait signal generation
@@ -206,7 +209,7 @@ begin
 	begin
 	    if (nReset = '0') then
 	      slave_wait <= '0';
-	    else
+	    elsif (clk'event and clk = '1') then
 	      slave_wait <= (iscl_oen and not dscl_oen and not sSCL) or (slave_wait and not sSCL);
 	    end if;
 	end process;
