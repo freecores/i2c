@@ -75,14 +75,15 @@
 
 `include "i2c_master_defines.v"
 
-module i2c_master_top(
+module i2c_master_top
+  (
 	wb_clk_i, wb_rst_i, arst_i, wb_adr_i, wb_dat_i, wb_dat_o,
 	wb_we_i, wb_stb_i, wb_cyc_i, wb_ack_o, wb_inta_o,
 	scl_pad_i, scl_pad_o, scl_padoen_o, sda_pad_i, sda_pad_o, sda_padoen_o );
 
 	// parameters
-	parameter ARST_LVL = 1'b0; // asynchronous reset level
-
+    parameter ARST_LVL = 1'b1; // asynchronous reset level
+    parameter [6:0] DEFAULT_SLAVE_ADDR  = 7'b111_1110;
 	//
 	// inputs & outputs
 	//
@@ -127,13 +128,15 @@ module i2c_master_top(
 	wire [ 7:0] rxr;  // receive register
 	reg  [ 7:0] cr;   // command register
 	wire [ 7:0] sr;   // status register
+	reg  [ 6:0] sladr;// slave address register
 
 	// done signal: command completed, clear command register
 	wire done;
-
+	wire slave_done;
 	// core enable signal
 	wire core_en;
 	wire ien;
+	wire slave_en;
 
 	// status register signals
 	wire irxack;
@@ -143,20 +146,21 @@ module i2c_master_top(
 	wire i2c_busy;    // bus busy (start signal detected)
 	wire i2c_al;      // i2c bus arbitration lost
 	reg  al;          // status register arbitration lost bit
-
+	reg  slave_mode;
 	//
 	// module body
 	//
-
+	wire  slave_act;
 	// generate internal reset
 	wire rst_i = arst_i ^ ARST_LVL;
 
 	// generate wishbone signals
 	wire wb_wacc = wb_we_i & wb_ack_o;
 
-	// generate acknowledge output signal
+	// generate acknowledge output signal ...
 	always @(posedge wb_clk_i)
-	  wb_ack_o <= wb_cyc_i & wb_stb_i & ~wb_ack_o; // because timing is always honored
+    // ... because timing is always honored.
+    wb_ack_o <=  wb_cyc_i & wb_stb_i & ~wb_ack_o;
 
 	// assign DAT_O
 	always @(posedge wb_clk_i)
@@ -167,9 +171,9 @@ module i2c_master_top(
 	    3'b010: wb_dat_o <= ctr;
 	    3'b011: wb_dat_o <= rxr; // write is transmit register (txr)
 	    3'b100: wb_dat_o <= sr;  // write is command register (cr)
-	    3'b101: wb_dat_o <= txr;
-	    3'b110: wb_dat_o <= cr;
-	    3'b111: wb_dat_o <= 0;   // reserved
+	    3'b101: wb_dat_o <= txr; // Debug out of TXR
+	    3'b110: wb_dat_o <= cr;  // Debug out control reg
+	    3'b111: wb_dat_o <= {1'b0,sladr};   // slave address register
 	  endcase
 	end
 
@@ -180,12 +184,14 @@ module i2c_master_top(
 	        prer <= 16'hffff;
 	        ctr  <=  8'h0;
 	        txr  <=  8'h0;
+	        sladr <=  DEFAULT_SLAVE_ADDR;
 	    end
 	  else if (wb_rst_i)
 	    begin
 	        prer <= 16'hffff;
 	        ctr  <=  8'h0;
 	        txr  <=  8'h0;
+	        sladr <=  DEFAULT_SLAVE_ADDR;
 	    end
 	  else
 	    if (wb_wacc)
@@ -194,6 +200,7 @@ module i2c_master_top(
 	         3'b001 : prer [15:8] <= wb_dat_i;
 	         3'b010 : ctr         <= wb_dat_i;
 	         3'b011 : txr         <= wb_dat_i;
+	         3'b111 : sladr       <=  wb_dat_i[6:0];
 	         default: ;
 	      endcase
 
@@ -210,10 +217,11 @@ module i2c_master_top(
 	    end
 	  else
 	    begin
+	        cr[1] <=  1'b0;
 	        if (done | i2c_al)
 	          cr[7:4] <= 4'h0;           // clear command bits when done
 	                                        // or when aribitration lost
-	        cr[2:1] <= 2'b0;             // reserved bits
+	        cr[2] <=  1'b0;             // reserved bits
 	        cr[0]   <= 1'b0;             // clear IRQ_ACK bit
 	    end
 
@@ -224,15 +232,19 @@ module i2c_master_top(
 	wire rd   = cr[5];
 	wire wr   = cr[4];
 	wire ack  = cr[3];
+	wire sl_cont = cr[1];
 	wire iack = cr[0];
 
 	// decode control register
 	assign core_en = ctr[7];
 	assign ien = ctr[6];
+	assign slave_en = ctr[5];
+
 
 	// hookup byte controller block
 	i2c_master_byte_ctrl byte_controller (
 		.clk      ( wb_clk_i     ),
+		.my_addr  ( sladr        ),
 		.rst      ( wb_rst_i     ),
 		.nReset   ( rst_i        ),
 		.ena      ( core_en      ),
@@ -253,7 +265,13 @@ module i2c_master_top(
 		.scl_oen  ( scl_padoen_o ),
 		.sda_i    ( sda_pad_i    ),
 		.sda_o    ( sda_pad_o    ),
-		.sda_oen  ( sda_padoen_o )
+		.sda_oen  ( sda_padoen_o ),
+		.sl_cont  ( sl_cont       ),
+		.slave_en ( slave_en      ),
+		.slave_dat_req (slave_dat_req),
+		.slave_dat_avail (slave_dat_avail),
+		.slave_act (slave_act),
+		.slave_cmd_ack (slave_done)
 	);
 
 	// status register block + interrupt request signal
@@ -264,6 +282,7 @@ module i2c_master_top(
 	        rxack    <= 1'b0;
 	        tip      <= 1'b0;
 	        irq_flag <= 1'b0;
+	        slave_mode <=  1'b0;
 	    end
 	  else if (wb_rst_i)
 	    begin
@@ -271,13 +290,19 @@ module i2c_master_top(
 	        rxack    <= 1'b0;
 	        tip      <= 1'b0;
 	        irq_flag <= 1'b0;
+	        slave_mode <=  1'b0;
 	    end
 	  else
 	    begin
 	        al       <= i2c_al | (al & ~sta);
 	        rxack    <= irxack;
 	        tip      <= (rd | wr);
-	        irq_flag <= (done | i2c_al | irq_flag) & ~iack; // interrupt request flag is always generated
+	        // interrupt request flag is always generated
+	        irq_flag <=  (done | slave_done| i2c_al | slave_dat_req |
+	        		      slave_dat_avail | irq_flag) & ~iack;
+	        if (done)
+	          slave_mode <=  slave_act;
+
 	    end
 
 	// generate interrupt request signals
@@ -287,13 +312,17 @@ module i2c_master_top(
 	  else if (wb_rst_i)
 	    wb_inta_o <= 1'b0;
 	  else
-	    wb_inta_o <= irq_flag && ien; // interrupt signal is only generated when IEN (interrupt enable bit is set)
+        // interrupt signal is only generated when IEN (interrupt enable bit
+        // is set)
+        wb_inta_o <=  irq_flag && ien;
 
 	// assign status register bits
 	assign sr[7]   = rxack;
 	assign sr[6]   = i2c_busy;
 	assign sr[5]   = al;
-	assign sr[4:2] = 3'h0; // reserved
+	assign sr[4]   = slave_mode; // reserved
+	assign sr[3]   = slave_dat_avail;
+	assign sr[2]   = slave_dat_req;
 	assign sr[1]   = tip;
 	assign sr[0]   = irq_flag;
 
