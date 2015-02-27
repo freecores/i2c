@@ -46,7 +46,6 @@
 //  $State: Exp $
 //
 // Change History:
-//               $Log: not supported by cvs2svn $
 //               Revision 1.11  2005/02/27 09:26:24  rherveille
 //               Fixed register overwrite issue.
 //               Removed full_case pragma, replaced it by a default statement.
@@ -153,7 +152,7 @@ module i2c_master_top(
 	wire rst_i = arst_i ^ ARST_LVL;
 
 	// generate wishbone signals
-	wire wb_wacc = wb_cyc_i & wb_stb_i & wb_we_i;
+	wire wb_wacc = wb_we_i & wb_ack_o;
 
 	// generate acknowledge output signal
 	always @(posedge wb_clk_i)
