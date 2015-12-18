@@ -69,10 +69,6 @@
 //               Changed PRER reset value from 0x0000 to 0xffff, conform specs.
 //
 
-// synopsys translate_off
-`include "timescale.v"
-// synopsys translate_on
-
 `include "i2c_master_defines.v"
 
 module i2c_master_top

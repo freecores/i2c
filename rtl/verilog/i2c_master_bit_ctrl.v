@@ -134,10 +134,6 @@
 // Tbuf        4.7us            1.3us   Bus free time between a stop and start condition
 //
 
-// synopsys translate_off
-`include "timescale.v"
-// synopsys translate_on
-
 `include "i2c_master_defines.v"
 
 module i2c_master_bit_ctrl (
