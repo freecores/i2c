@@ -79,7 +79,9 @@ module tst_bench_top();
 	wire we;
 	wire stb;
 	wire cyc;
-	wire ack;
+	wire ack0;
+	wire ack1;
+	wire ack = ack0 | ack1;
 	wire inta;
 
 	reg [7:0] q, qq;
@@ -143,7 +145,7 @@ module tst_bench_top();
 		.wb_we_i(we),
 		.wb_stb_i(stb0),
 		.wb_cyc_i(cyc),
-		.wb_ack_o(ack),
+		.wb_ack_o(ack0),
 		.wb_inta_o(inta),
 
 		// i2c signals
@@ -167,7 +169,7 @@ module tst_bench_top();
 		.wb_we_i(we),
 		.wb_stb_i(stb1),
 		.wb_cyc_i(cyc),
-		.wb_ack_o(ack),
+		.wb_ack_o(ack1),
 		.wb_inta_o(inta),
 
 		// i2c signals
