@@ -66,8 +66,6 @@
 //               Added headers.
 //
 
-`include "timescale.v"
-
 module tst_bench_top();
 
 	//

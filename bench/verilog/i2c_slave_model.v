@@ -66,8 +66,6 @@
 //               Added headers.
 //
 
-`include "timescale.v"
-
 module i2c_slave_model (scl, sda);
 
 	//
