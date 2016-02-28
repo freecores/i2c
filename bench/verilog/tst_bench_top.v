@@ -131,7 +131,7 @@ module tst_bench_top();
 	assign dat_i = ({{8'd8}{stb0}} & dat0_i) | ({{8'd8}{stb1}} & dat1_i);
 
 	// hookup wishbone_i2c_master core
-	i2c_master_top i2c_top (
+	i2c_master_top #(.ARST_LVL (0)) i2c_top (
 
 		// wishbone interface
 		.wb_clk_i(clk),
@@ -153,8 +153,9 @@ module tst_bench_top();
 		.sda_pad_i(sda),
 		.sda_pad_o(sda0_o),
 		.sda_padoen_o(sda0_oen)
-	),
-	i2c_top2 (
+	);
+
+	i2c_master_top #(.ARST_LVL (0)) i2c_top2 (
 
 		// wishbone interface
 		.wb_clk_i(clk),
