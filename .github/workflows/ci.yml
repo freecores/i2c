@@ -1,0 +1,51 @@
+name: ci
+on: [push]
+
+jobs:
+# This seems to hang OpenLANE during routing
+# Temporarily disabled job until we figure out what's going on
+#  build-openlane-sky130:
+#    runs-on: ubuntu-latest
+#    env:
+#      REPO : i2c
+#      VLNV : i2c
+#    steps:
+#      - name: Checkout repo
+#        uses: actions/checkout@v2
+#        with:
+#          path: i2c
+#      - run: echo "EDALIZE_LAUNCHER=el_docker" >> $GITHUB_ENV
+#      - run: pip3 install fusesoc
+#      - run: fusesoc library add $REPO $GITHUB_WORKSPACE/$REPO
+#      - run: fusesoc run --target=sky130 $VLNV
+
+  sim-icarus:
+    runs-on: ubuntu-latest
+    env:
+      REPO : i2c
+      VLNV : i2c
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v2
+        with:
+          path: i2c
+      - run: sudo apt install iverilog
+      - run: pip3 install fusesoc
+      - run: fusesoc library add fusesoc_cores https://github.com/fusesoc/fusesoc-cores
+      - run: fusesoc library add $REPO $GITHUB_WORKSPACE/$REPO
+      - run: fusesoc run --target=sim $VLNV
+
+  lint-verilator:
+    runs-on: ubuntu-latest
+    env:
+      REPO : i2c
+      VLNV : i2c
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v2
+        with:
+          path: i2c
+      - run: sudo apt install verilator
+      - run: pip3 install fusesoc
+      - run: fusesoc library add $REPO $GITHUB_WORKSPACE/$REPO
+      - run: fusesoc run --target=lint $VLNV
