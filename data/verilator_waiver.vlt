@@ -1,0 +1,4 @@
+`verilator_config
+//Seems to have worked fine for 20 years so waiving the warning rather than changing the implementation
+lint_off -rule CASEINCOMPLETE -file "*/i2c_master_byte_ctrl.v" -lines 292-293
+lint_off -rule CASEINCOMPLETE -file "*/i2c_master_bit_ctrl.v" -lines 659-660
