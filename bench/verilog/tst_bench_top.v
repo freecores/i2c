@@ -68,6 +68,10 @@
 
 module tst_bench_top();
 
+//Conditionally enable vlog_tb_utils if running under FuseSoC
+`ifdef WITH_VTU
+   vlog_tb_utils vtu();
+`endif
 	//
 	// wires && regs
 	//
