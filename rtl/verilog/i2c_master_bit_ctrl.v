@@ -259,8 +259,8 @@ module i2c_master_bit_ctrl (
     always @(posedge clk or negedge nReset)
       if      (!nReset     ) filter_cnt <= 14'h0;
       else if (rst || !ena ) filter_cnt <= 14'h0;
-      else if (~|filter_cnt) filter_cnt <= clk_cnt >> 2; //16x I2C bus frequency
-      else                   filter_cnt <= filter_cnt -1;
+      else if (~|filter_cnt) filter_cnt <= clk_cnt[15:2]; //16x I2C bus frequency
+      else                   filter_cnt <= filter_cnt -14'd1;
 
 
     always @(posedge clk or negedge nReset)
@@ -603,7 +603,7 @@ module i2c_master_bit_ctrl (
 
 	if ((sSCL & ~dSCL) && slave_cnt != 4'h0 && slave_act)	 begin
 	   slave_adr <=  {slave_adr[6:0], sSDA};
-	   slave_cnt <=  slave_cnt -1;
+	   slave_cnt <=  slave_cnt -4'd1;
 	end
 	else if (slave_cnt == 4'h0 && !sta_condition && slave_act) begin
 	   slave_adr_received <=  1'b1;
