@@ -153,6 +153,7 @@ module i2c_master_byte_ctrl
 	reg  [2:0] dcnt;
 	wire       cnt_done;
 	wire       slave_ack;
+	wire       slave_reset;
 
 
 	//Slave signals

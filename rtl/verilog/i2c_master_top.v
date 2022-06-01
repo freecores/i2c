@@ -133,6 +133,8 @@ module i2c_master_top
 	wire core_en;
 	wire ien;
 	wire slave_en;
+	wire slave_dat_req;
+	wire slave_dat_avail;
 
 	// status register signals
 	wire irxack;
