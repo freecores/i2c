@@ -1,6 +1,6 @@
 CAPI=2:
 
-name : ::i2c:1.14
+name : ::i2c:1.15
 description : WISHBONE revB.2 compliant I2C controller
 
 filesets:
