@@ -67,6 +67,7 @@
 //
 
 `include "i2c_master_defines.v"
+`default_nettype wire   //do not allow undeclared wires
 
 module i2c_master_byte_ctrl
   (
