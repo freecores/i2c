@@ -327,8 +327,8 @@ module i2c_master_bit_ctrl (
       end
       else
       begin
-          sta_condition <= ~sSDA &  dSDA & sSCL;
-          sto_condition <=  sSDA & ~dSDA & sSCL;
+          sta_condition <= 1'b0;//~sSDA &  dSDA & sSCL;
+          sto_condition <=  1'b0;//sSDA & ~dSDA & sSCL;
       end
 
 
@@ -358,7 +358,7 @@ module i2c_master_bit_ctrl (
       else if (rst)
           al <= 1'b0;
       else
-          al <= (sda_chk & ~sSDA & sda_oen) | (|c_state & sto_condition & ~cmd_stop);
+          al <= 1'b0; //(sda_chk & ~sSDA & sda_oen) | (|c_state & sto_condition & ~cmd_stop);
 
 
     // generate dout signal (store SDA on rising edge of SCL)
