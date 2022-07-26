@@ -241,13 +241,13 @@ module i2c_master_bit_ctrl (
     always @(posedge clk or negedge nReset)
       if (!nReset)
       begin
-          cSCL <= 2'b00;
-          cSDA <= 2'b00;
+          cSCL <= 2'b11;
+          cSDA <= 2'b11;
       end
       else if (rst)
       begin
-          cSCL <= 2'b00;
-          cSDA <= 2'b00;
+          cSCL <= 2'b11;
+          cSDA <= 2'b11;
       end
       else
       begin
@@ -718,7 +718,7 @@ module i2c_master_bit_ctrl (
           endcase // case (slave_state)
        end
 
-   assign slave_reset = sta_condition | sto_condition;
+   assign slave_reset = !master_mode && (sta_condition | sto_condition);
 
     // assign scl and sda output (always gnd)
     assign scl_o = 1'b0;
