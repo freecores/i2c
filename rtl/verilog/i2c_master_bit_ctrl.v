@@ -714,6 +714,8 @@ module i2c_master_bit_ctrl (
                     slave_state <=  slave_wait_next_cmd_1;
                  end
               end
+
+            default:;
           endcase // case (slave_state)
        end
 

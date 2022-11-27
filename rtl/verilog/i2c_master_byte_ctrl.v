@@ -261,7 +261,7 @@ module i2c_master_byte_ctrl
 	        slave_cmd_out <= 2'b0;
 	        slave_cmd_ack <= 1'b0;
 	    end
-     else if (rst | i2c_al | slave_reset)
+     else if (rst | i2c_al /* | slave_reset */)
 	   begin
 	       core_cmd <= `I2C_CMD_NOP;
 	       core_txd <= 1'b0;
@@ -498,6 +498,7 @@ module i2c_master_byte_ctrl
 	                cmd_ack  <= 1'b1;
 	            end
 
+	        default:;
 	      endcase
 	  end
 endmodule
