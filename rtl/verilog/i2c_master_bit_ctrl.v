@@ -587,7 +587,6 @@ module i2c_master_bit_ctrl (
    assign sda_oen = master_mode ? sda_oen_master : sda_oen_slave ;
    assign scl_oen = master_mode ? scl_oen_master : scl_oen_slave ;
    reg 	     slave_act;
-   reg 	     slave_adr_received_d;
 
    //A 1 cycle pulse slave_adr_recived is generated when a slave adress is recvied after a startcommand.
 
