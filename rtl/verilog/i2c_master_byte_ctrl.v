@@ -261,7 +261,7 @@ module i2c_master_byte_ctrl
 	        slave_cmd_out <= 2'b0;
 	        slave_cmd_ack <= 1'b0;
 	    end
-     else if (rst | i2c_al | slave_reset)
+     else if (rst | i2c_al)
 	   begin
 	       core_cmd <= `I2C_CMD_NOP;
 	       core_txd <= 1'b0;
@@ -332,48 +332,56 @@ module i2c_master_byte_ctrl
 
 	      end
             ST_SL_RD: //If master read, slave sending data
-              begin
-				 slave_cmd <=  `I2C_SLAVE_CMD_NOP;
-				 if (slave_ack) begin
-					if (cnt_done) begin
-					       c_state   <=  ST_SL_ACK;
-					       slave_cmd <=  `I2C_SLAVE_CMD_READ;
-					    end
-					    else
-					      begin
-					         c_state   <=  ST_SL_RD;
-					         slave_cmd <=  `I2C_SLAVE_CMD_WRITE;
-					         shift     <=  1'b1;
-					      end
-				 end
-              end
+                begin
+                    slave_cmd <=  `I2C_SLAVE_CMD_NOP;
+
+                    if (slave_ack) begin
+                        if (cnt_done) begin
+                            c_state   <=  ST_SL_ACK;
+                            slave_cmd <=  `I2C_SLAVE_CMD_READ;
+                        end
+                        else
+                        begin
+                            c_state   <=  ST_SL_RD;
+                            slave_cmd <=  `I2C_SLAVE_CMD_WRITE;
+                            shift     <=  1'b1;
+                        end
+                    end
+                end
             ST_SL_WR: //If master write, slave reading data
-              begin
-		 slave_cmd <=  `I2C_SLAVE_CMD_NOP;
-		 if (slave_ack)
-	           begin
-	              if (cnt_done)
-	                begin
-	                   c_state  <=  ST_SL_ACK;
-	                   slave_cmd <=  `I2C_SLAVE_CMD_WRITE;
-	                   core_txd <=  1'b0;
-	                end
-	              else
-	                begin
-	                   c_state  <=  ST_SL_WR;
-	                   slave_cmd <=  `I2C_SLAVE_CMD_READ;
-	                end
-	              shift    <=  1'b1;
-	           end
-	      end
+                begin
+                    slave_cmd <=  `I2C_SLAVE_CMD_NOP;
+
+                    if (slave_reset)
+                        begin
+                            c_state   <=  ST_IDLE;
+                            slave_cmd <= `I2C_SLAVE_CMD_NOP;
+                        end
+                    else if (slave_ack)
+                        begin
+                            if (cnt_done)
+                                begin
+                                    c_state  <=  ST_SL_ACK;
+                                    slave_cmd <=  `I2C_SLAVE_CMD_WRITE;
+                                    core_txd <=  1'b0;
+                                end
+                            else
+                                begin
+                                    c_state  <=  ST_SL_WR;
+                                    slave_cmd <=  `I2C_SLAVE_CMD_READ;
+                                end
+
+                            shift <=  1'b1;
+                        end
+                end
             ST_SL_WAIT: //Wait for interupt-clear and hold SCL in waitstate
               begin
                  sl_wait <=  1'b1;
                  if (sl_cont) begin
                     sl_wait <=  1'b0;
                     ld <=  1'b1;
-                    slave_dat_req	<=  1'b0;
-                    slave_dat_avail	<=  1'b0;
+                    slave_dat_req   <=  1'b0;
+                    slave_dat_avail <=  1'b0;
                     c_state   <=  ST_SL_PRELOAD;
 	         end
               end
@@ -498,6 +506,7 @@ module i2c_master_byte_ctrl
 	                cmd_ack  <= 1'b1;
 	            end
 
+	        default:;
 	      endcase
 	  end
 endmodule
